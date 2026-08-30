@@ -89,26 +89,26 @@ fun GameScreen(
     val coinPositions = remember {
         mutableStateListOf(
             bottom[0],
-            bottom[2],
 
             top1[0],
+            top1[1],
             top1[2],
+            top1[3],
             top1[4],
+            top1[5],
             top1[6],
+            top1[7],
 
             top2[0],
+            top2[1],
             top2[2],
+            top2[3],
             top2[4],
+            top2[5],
             top2[6],
+            top2[7],
 
-            down1[0],
-            down2[0],
-            down3[0],
-            down4[0],
 
-            bottom[10],
-            bottom[12],
-            bottom[14]
         )
     }
 
@@ -117,13 +117,64 @@ fun GameScreen(
         mutableIntStateOf(-1)
     }
 
-    var isDragging by remember {
-        mutableStateOf(false)
-    }
-
     var bottomCoin by remember {
         mutableStateOf(bottom[0])
     }
+
+    // -------------------------
+// Current position of coins
+// -------------------------
+
+    val bottomCoins = remember {
+        mutableStateListOf(*bottom.toTypedArray())
+    }
+
+
+// -------------------------
+// Drag information
+// -------------------------
+
+    var draggedGroup by remember {
+        mutableStateOf("")
+    }
+
+    var isDragging by remember {
+        mutableStateOf(false)
+    }
+    val adjacentNodes = mapOf(
+        bottom[2] to listOf(top1[0], top1[1]),
+        bottom[3] to listOf(top1[1]),
+        bottom[4] to listOf(top1[2], top1[3], down1[0]),
+        bottom[5] to listOf(top1[3]),
+        bottom[6] to listOf(top1[4], top1[5]),
+        bottom[7] to listOf(top1[5]),
+        bottom[8] to listOf(top1[6], top1[7], down2[0]),
+        bottom[9] to listOf(top1[7]),
+
+        bottom[11] to listOf(top2[0]),
+        bottom[12] to listOf(top2[0], top2[1]),
+        bottom[13] to listOf(top2[2]),
+        bottom[14] to listOf(top2[2], top2[3]),
+        bottom[15] to listOf(top2[4]),
+        bottom[16] to listOf(top2[4], top2[5]),
+        bottom[17] to listOf(top2[6]),
+        bottom[18] to listOf(top2[6], top2[7])
+    )
+    fun isOccupied(
+        node: Offset,
+        draggedIndex: Int
+    ): Boolean {
+
+        return coinPositions.indices.any { index ->
+
+            if (index == draggedIndex) {
+                false
+            } else {
+                (coinPositions[index] - node).getDistance() < 30f
+            }
+        }
+    }
+
 
     val top1Coins = remember {
         mutableStateListOf(
@@ -188,45 +239,101 @@ fun GameScreen(
 
         Canvas(
             modifier = Modifier
-                .fillMaxSize()
+                .size(900.dp)
                 .pointerInput(Unit) {
 
                     detectDragGestures(
 
-                        onDragStart = { touchPosition ->
+                        onDragStart = { position ->
 
-                            // Find which coin was touched
-                            draggedCoinIndex =
-                                coinPositions.indices.minByOrNull { index ->
+                            // Check TOP1
+                            val top1Index = top1Coins.indexOfFirst { coinPosition ->
+                                (position - coinPosition).getDistance() < 30f
+                            }
 
-                                    val coin = coinPositions[index]
+                            if (top1Index != -1) {
 
-                                    val dx = touchPosition.x - coin.x
-                                    val dy = touchPosition.y - coin.y
+                                draggedGroup = "top1"
+                                draggedCoinIndex = top1Index
+                                isDragging = true
 
-                                    dx * dx + dy * dy
+                                dragPosition = top1Coins[top1Index]
+                            }
 
-                                } ?: -1
+                            else {
 
-                            isDragging = true
+                                // Check TOP2
+                                val top2Index = top2Coins.indexOfFirst { coinPosition ->
+                                    (position - coinPosition).getDistance() < 30f
+                                }
+
+                                if (top2Index != -1) {
+
+                                    draggedGroup = "top2"
+                                    draggedCoinIndex = top2Index
+                                    isDragging = true
+
+                                    dragPosition = top2Coins[top2Index]
+                                }
+
+                                else {
+
+                                    // Check BOTTOM
+                                    val bottomIndex = bottomCoins.indexOfFirst { coinPosition ->
+                                        (position - coinPosition).getDistance() < 30f
+                                    }
+
+                                    if (bottomIndex != -1) {
+
+                                        draggedGroup = "bottom"
+                                        draggedCoinIndex = bottomIndex
+                                        isDragging = true
+
+                                        dragPosition = bottomCoins[bottomIndex]
+                                    }
+                                }
+                            }
                         },
 
                         onDrag = { change, dragAmount ->
 
-                            if (draggedCoinIndex != -1) {
+                            if (isDragging && draggedCoinIndex != -1) {
 
                                 change.consume()
 
-                                val oldPosition =
-                                    coinPositions[draggedCoinIndex]
+                                val oldPosition = when (draggedGroup) {
+
+                                    "top1" ->
+                                        top1Coins[draggedCoinIndex]
+
+                                    "top2" ->
+                                        top2Coins[draggedCoinIndex]
+
+                                    "bottom" ->
+                                        bottomCoins[draggedCoinIndex]
+
+                                    else ->
+                                        return@detectDragGestures
+                                }
 
                                 val newPosition = Offset(
                                     x = oldPosition.x + dragAmount.x,
                                     y = oldPosition.y + dragAmount.y
                                 )
 
-                                // Move ONLY the selected coin
-                                coinPositions[draggedCoinIndex] = newPosition
+                                when (draggedGroup) {
+
+                                    "top1" ->
+                                        top1Coins[draggedCoinIndex] = newPosition
+
+                                    "top2" ->
+                                        top2Coins[draggedCoinIndex] = newPosition
+
+                                    "bottom" ->
+                                        bottomCoins[draggedCoinIndex] = newPosition
+                                }
+
+                                dragPosition = newPosition
                             }
                         },
 
@@ -275,21 +382,21 @@ fun GameScreen(
 
 
             for (i in 0 until bottom.size - 1) {
-                drawLine(Color.Green, start = bottom[i], end = bottom[i + 1], strokeWidth = 5f)
+                drawLine(Color.Black, start = bottom[i], end = bottom[i + 1], strokeWidth = 5f)
             }
 
-            drawLine(Color.Green, start = bottom[2], top1[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[2], top1[1], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[3], top1[1], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[4], top1[2], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[4], top1[3], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[5], top1[3], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[6], top1[4], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[6], top1[5], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[7], top1[5], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[8], top1[6], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[8], top1[7], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[9], top1[7], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[2], top1[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[2], top1[1], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[3], top1[1], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[4], top1[2], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[4], top1[3], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[5], top1[3], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[6], top1[4], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[6], top1[5], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[7], top1[5], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[8], top1[6], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[8], top1[7], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[9], top1[7], strokeWidth = 5f)
 
             for (i in top1) {
                 drawCircle(Color.White, radius = 12f, center = i)
@@ -297,18 +404,18 @@ fun GameScreen(
             }
 
 
-            drawLine(Color.Green, start = bottom[11], top2[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[12], top2[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[12], top2[1], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[13], top2[2], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[14], top2[2], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[14], top2[3], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[15], top2[4], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[16], top2[4], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[16], top2[5], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[17], top2[6], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[18], top2[6], strokeWidth = 5f)
-            drawLine(Color.Green, start = bottom[18], top2[7], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[11], top2[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[12], top2[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[12], top2[1], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[13], top2[2], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[14], top2[2], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[14], top2[3], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[15], top2[4], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[16], top2[4], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[16], top2[5], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[17], top2[6], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[18], top2[6], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[18], top2[7], strokeWidth = 5f)
 
             for (i in top2) {
                 drawCircle(Color.White, radius = 12f, center = i)
@@ -316,16 +423,16 @@ fun GameScreen(
             }
 
 
-            drawLine(Color.Green, start = bottom[4], end = down1[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = down1[1], end = down1[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[4], end = down1[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = down1[1], end = down1[0], strokeWidth = 5f)
 
             for (i in down1) {
                 drawCircle(Color.White, radius = 12f, center = i)
                 drawCircle(Color.Red, radius = 12f, center = i, style = Stroke(5f))
             }
 
-            drawLine(Color.Green, start = bottom[8], end = down2[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = down2[1], end = down2[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[8], end = down2[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = down2[1], end = down2[0], strokeWidth = 5f)
 
             for (i in down2) {
                 drawCircle(Color.White, radius = 12f, center = i)
@@ -334,8 +441,8 @@ fun GameScreen(
 
 
 
-            drawLine(Color.Green, start = bottom[14], end = down3[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = down3[1], end = down3[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[14], end = down3[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = down3[1], end = down3[0], strokeWidth = 5f)
 
             for (i in down3) {
                 drawCircle(Color.White, radius = 12f, center = i)
@@ -343,8 +450,8 @@ fun GameScreen(
             }
 
 
-            drawLine(Color.Green, start = bottom[18], end = down4[0], strokeWidth = 5f)
-            drawLine(Color.Green, start = down4[1], end = down4[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = bottom[18], end = down4[0], strokeWidth = 5f)
+            drawLine(Color.Black, start = down4[1], end = down4[0], strokeWidth = 5f)
 
             for (i in down4) {
                 drawCircle(Color.White, radius = 12f, center = i)
@@ -355,6 +462,8 @@ fun GameScreen(
                 drawCircle(Color.White, radius = 12f, center = i)
                 drawCircle(Color.Red, radius = 12f, center = i, style = Stroke(5f))
             }
+
+            drawCircle(Color.Green, radius = 12f, center = Offset(150f,650f), style = Stroke(5f))
 
 
 
@@ -395,6 +504,7 @@ fun GameScreen(
                     style = Stroke(width = 7f)
                 )
             }
+
 
 
         }//Canvas end
