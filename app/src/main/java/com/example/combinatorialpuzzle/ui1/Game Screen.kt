@@ -33,7 +33,10 @@ import org.json.JSONObject
 import kotlin.math.sqrt
 import androidx.compose.ui.res.imageResource
 import com.example.combinatorialpuzzle.R
-
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.awaitFirstDown
 
 // =====================================================
 // GAME SCREEN
@@ -660,6 +663,75 @@ fun GraphFromJson(
         }
     }
 
+    // =====================================================
+// SELECT COIN
+// =====================================================
+
+    fun selectCoinAt(touchPosition: Offset) {
+
+        selectedCoinIndex = -1
+        highlightedNodes = emptyList()
+
+        graph.coins.forEachIndexed { index, _ ->
+
+            val nodeId = coinNodes[index]
+
+            val node = nodeMap[nodeId]
+
+            if (node != null) {
+
+                val coinPosition = position(node)
+
+                val dx =
+                    touchPosition.x - coinPosition.x
+
+                val dy =
+                    touchPosition.y - coinPosition.y
+
+                val distance =
+                    sqrt(
+                        dx * dx +
+                                dy * dy
+                    )
+
+                // Coin click area
+                if (distance < 70f) {
+
+                    // Select this coin
+                    selectedCoinIndex = index
+
+                    // Find valid adjacent nodes
+                    val currentNode =
+                        coinNodes[index]
+
+                    val validNodes =
+                        getAdjacentNodes(currentNode)
+                            .filter { destinationNode ->
+
+                                // Destination must be empty
+                                !isOccupied(
+                                    destinationNode,
+                                    index
+                                )
+                            }
+                            .filter { destinationNode ->
+
+                                // Destination must not be
+                                // blocked by nearby coin
+                                !isBlockedByNearbyCoin(
+                                    destinationNode,
+                                    index
+                                )
+                            }
+
+                    // Make valid nodes green
+                    highlightedNodes = validNodes
+
+                    return@forEachIndexed
+                }
+            }
+        }
+    }
 
     // =================================================
     // GRAPH BOX
@@ -692,345 +764,317 @@ fun GraphFromJson(
 
                     canvasSize = it
                 }
-
-                // =================================================
-                // GESTURE
-                // =================================================
-
                 .pointerInput(
                     jsonFileName,
                     canvasSize,
                     coinNodes
                 ) {
 
-                    detectDragGestures(
+                    awaitEachGesture {
 
-                        // =========================================
-                        // DRAG START
-                        // =========================================
-                        onDragStart = { touchPosition ->
+                        // =================================================
+                        // WAIT FOR FIRST TOUCH
+                        // =================================================
 
-                            selectedCoinIndex = -1
-                            highlightedNodes = emptyList()
+                        val down =
+                            awaitFirstDown(
+                                requireUnconsumed = false
+                            )
 
-                            dragStart = touchPosition
-                            dragEnd = touchPosition
+                        val touchPosition =
+                            down.position
 
-                            // Find touched coin
-                            graph.coins.forEachIndexed { index, _ ->
 
-                                val nodeId = coinNodes[index]
+                        // =================================================
+                        // CLICK / SELECT COIN
+                        // =================================================
 
-                                val node = nodeMap[nodeId]
+                        selectCoinAt(
+                            touchPosition
+                        )
 
-                                if (node != null) {
 
-                                    val coinPosition = position(node)
+                        // Remember which coin was selected
+                        val coinIndex =
+                            selectedCoinIndex
 
-                                    val dx =
-                                        touchPosition.x - coinPosition.x
 
-                                    val dy =
-                                        touchPosition.y - coinPosition.y
+                        // =================================================
+                        // WAIT TO SEE WHETHER USER DRAGS
+                        // =================================================
 
-                                    val distance =
-                                        sqrt(
-                                            dx * dx +
-                                                    dy * dy
-                                        )
+                        val dragStartChange =
+                            awaitTouchSlopOrCancellation(
+                                down.id
+                            ) { change, _ ->
 
-                                    if (distance < 70f) {
-
-                                        selectedCoinIndex = index
-
-                                        // =========================================
-                                        // FIND VALID GREEN NODES
-                                        // =========================================
-
-                                        val currentNode = coinNodes[index]
-
-                                        val validNodes =
-                                            getAdjacentNodes(currentNode)
-                                                .filter { destinationNode ->
-
-                                                    // Destination must be empty
-                                                    !isOccupied(
-                                                        destinationNode,
-                                                        index
-                                                    )
-
-                                                    // Destination must not be blocked
-                                                }
-                                                .filter { destinationNode ->
-
-                                                    !isBlockedByNearbyCoin(
-                                                        destinationNode,
-                                                        index
-                                                    )
-                                                }
-
-                                        highlightedNodes = validNodes
-                                    }
-                                }
+                                change.consume()
                             }
-                        },
 
 
-                        // =========================================
-                        // DRAG
-                        // =========================================
+                        // =================================================
+                        // DRAG STARTED
+                        // =================================================
 
-                        onDrag = {
-                                change, _ ->
+                        if (
+                            dragStartChange != null &&
+                            coinIndex != -1
+                        ) {
+
+                            dragStart =
+                                touchPosition
 
                             dragEnd =
-                                change.position
-
-                            change.consume()
-                        },
-
-                        // =========================================
-                        // DRAG END
-                        // =========================================
-
-                        onDragEnd = {
-
-                            val coinIndex =
-                                selectedCoinIndex
+                                dragStartChange.position
 
 
-                            if (coinIndex != -1) {
+                            // =================================================
+                            // CONTINUE DRAG
+                            // =================================================
 
-                                val currentNode =
-                                    coinNodes[coinIndex]
+                            drag(
+                                dragStartChange.id
+                            ) { change ->
 
+                                dragEnd =
+                                    change.position
 
-                                // =================================
-                                // DRAG DIRECTION
-                                // =================================
-
-                                val dx =
-                                    dragEnd.x - dragStart.x
-
-
-                                val dy =
-                                    dragEnd.y - dragStart.y
+                                change.consume()
+                            }
 
 
-                                val dragDistance =
-                                    sqrt(
-                                        dx * dx + dy * dy
+                            // =================================================
+                            // DRAG FINISHED
+                            // =================================================
+
+                            val currentNode =
+                                coinNodes[coinIndex]
+
+
+                            // =================================================
+                            // DRAG DIRECTION
+                            // =================================================
+
+                            val dx =
+                                dragEnd.x - dragStart.x
+
+                            val dy =
+                                dragEnd.y - dragStart.y
+
+
+                            val dragDistance =
+                                sqrt(
+                                    dx * dx +
+                                            dy * dy
+                                )
+
+
+                            if (
+                                dragDistance > 20f
+                            ) {
+
+                                val dragUnitX =
+                                    dx / dragDistance
+
+                                val dragUnitY =
+                                    dy / dragDistance
+
+
+                                // =================================================
+                                // FIND ADJACENT NODES
+                                // =================================================
+
+                                val adjacentNodes =
+                                    getAdjacentNodes(
+                                        currentNode
                                     )
 
 
-                                if (dragDistance > 20f) {
+                                // =================================================
+                                // FIND BEST DESTINATION
+                                // =================================================
 
-                                    val dragUnitX =
-                                        dx /
-                                                dragDistance
+                                var bestNode: Int? =
+                                    null
+
+                                var bestScore =
+                                    -Float.MAX_VALUE
 
 
-                                    val dragUnitY =
-                                        dy /
-                                                dragDistance
+                                for (
+                                adjacentNode
+                                in adjacentNodes
+                                ) {
 
+                                    // -----------------------------------------
+                                    // MUST BE ADJACENT
+                                    // -----------------------------------------
 
-                                    // =================================
-                                    // FIND ADJACENT NODES
-                                    // =================================
-
-                                    val adjacentNodes =
-                                        getAdjacentNodes(
-                                            currentNode
+                                    if (
+                                        !isAdjacent(
+                                            currentNode,
+                                            adjacentNode
                                         )
-
-
-                                    // =================================
-                                    // FIND BEST DESTINATION
-                                    // =================================
-
-                                    var bestNode: Int? = null
-
-
-                                    var bestScore = -Float.MAX_VALUE
-
-
-                                    for (
-                                    adjacentNode
-                                    in adjacentNodes
                                     ) {
-
-
-                                        // ---------------------------------
-                                        // MUST BE ADJACENT
-                                        // ---------------------------------
-
-                                        if (
-                                            !isAdjacent(
-                                                currentNode,
-                                                adjacentNode
-                                            )
-                                        ) {
-                                            continue
-                                        }
-
-
-                                        // ---------------------------------
-                                        // RULE 1:
-                                        // DESTINATION ITSELF HAS A COIN
-                                        // ---------------------------------
-
-                                        if (
-                                            isOccupied(
-                                                adjacentNode,
-                                                coinIndex
-                                            )
-                                        ) {
-
-                                            continue
-                                        }
-
-
-                                        // ---------------------------------
-                                        // RULE 2:
-                                        //
-                                        // A COIN IS ON A NODE ADJACENT
-                                        // TO THE DESTINATION
-                                        // ---------------------------------
-
-                                        if (
-                                            isBlockedByNearbyCoin(
-                                                adjacentNode,
-                                                coinIndex
-                                            )
-                                        ) {
-                                            continue
-                                        }
-
-
-                                        // ---------------------------------
-                                        // GET POSITIONS
-                                        // ---------------------------------
-
-                                        val currentGraphNode =
-                                            nodeMap[currentNode]
-
-
-                                        val nextGraphNode =
-                                            nodeMap[adjacentNode]
-
-
-                                        if (
-                                            currentGraphNode != null &&
-                                            nextGraphNode != null
-                                        ) {
-
-                                            val currentPosition =
-                                                position(
-                                                    currentGraphNode
-                                                )
-
-
-                                            val nextPosition =
-                                                position(
-                                                    nextGraphNode
-                                                )
-
-
-                                            // ---------------------------------
-                                            // DIRECTION
-                                            // ---------------------------------
-
-                                            val nodeDx =
-                                                nextPosition.x - currentPosition.x
-
-
-                                            val nodeDy =
-                                                nextPosition.y - currentPosition.y
-
-
-                                            val nodeDistance =
-                                                sqrt(nodeDx * nodeDx + nodeDy * nodeDy)
-
-
-                                            if (
-                                                nodeDistance > 0f
-                                            ) {
-
-                                                val nodeUnitX =
-                                                    nodeDx /
-                                                            nodeDistance
-
-
-                                                val nodeUnitY =
-                                                    nodeDy /
-                                                            nodeDistance
-
-
-                                                // ---------------------------------
-                                                // DOT PRODUCT
-                                                // ---------------------------------
-
-                                                val score =
-                                                    dragUnitX * nodeUnitX + dragUnitY * nodeUnitY
-
-
-                                                if (
-                                                    score >
-                                                    bestScore
-                                                ) {
-
-                                                    bestScore =
-                                                        score
-
-                                                    bestNode =
-                                                        adjacentNode
-                                                }
-                                            }
-                                        }
+                                        continue
                                     }
 
 
-                                    // =================================
-                                    // MOVE COIN
-                                    // =================================
+                                    // -----------------------------------------
+                                    // DESTINATION HAS COIN
+                                    // -----------------------------------------
 
-                                    bestNode?.let {
+                                    if (
+                                        isOccupied(
+                                            adjacentNode,
+                                            coinIndex
+                                        )
+                                    ) {
+                                        continue
+                                    }
 
-                                            destination ->
+
+                                    // -----------------------------------------
+                                    // BLOCKED BY NEARBY COIN
+                                    // -----------------------------------------
+
+                                    if (
+                                        isBlockedByNearbyCoin(
+                                            adjacentNode,
+                                            coinIndex
+                                        )
+                                    ) {
+                                        continue
+                                    }
+
+
+                                    // -----------------------------------------
+                                    // GET GRAPH NODES
+                                    // -----------------------------------------
+
+                                    val currentGraphNode =
+                                        nodeMap[currentNode]
+
+                                    val nextGraphNode =
+                                        nodeMap[adjacentNode]
+
+
+                                    if (
+                                        currentGraphNode != null &&
+                                        nextGraphNode != null
+                                    ) {
+
+                                        val currentPosition =
+                                            position(
+                                                currentGraphNode
+                                            )
+
+                                        val nextPosition =
+                                            position(
+                                                nextGraphNode
+                                            )
+
+
+                                        // -----------------------------------------
+                                        // NODE DIRECTION
+                                        // -----------------------------------------
+
+                                        val nodeDx =
+                                            nextPosition.x -
+                                                    currentPosition.x
+
+                                        val nodeDy =
+                                            nextPosition.y -
+                                                    currentPosition.y
+
+
+                                        val nodeDistance =
+                                            sqrt(
+                                                nodeDx * nodeDx +
+                                                        nodeDy * nodeDy
+                                            )
+
 
                                         if (
-                                            bestScore > 0.5f
+                                            nodeDistance > 0f
                                         ) {
 
-                                            coinNodes =
-                                                coinNodes
-                                                    .toMutableList()
-                                                    .also {
+                                            val nodeUnitX =
+                                                nodeDx /
+                                                        nodeDistance
 
-                                                        it[coinIndex] =
-                                                            destination
-                                                    }
+                                            val nodeUnitY =
+                                                nodeDy /
+                                                        nodeDistance
+
+
+                                            // -----------------------------------------
+                                            // DOT PRODUCT
+                                            // -----------------------------------------
+
+                                            val score =
+                                                dragUnitX * nodeUnitX +
+                                                        dragUnitY * nodeUnitY
+
+
+                                            if (
+                                                score >
+                                                bestScore
+                                            ) {
+
+                                                bestScore =
+                                                    score
+
+                                                bestNode =
+                                                    adjacentNode
+                                            }
                                         }
                                     }
                                 }
 
-                                selectedCoinIndex = -1
-                                highlightedNodes = emptyList()
+
+                                // =================================================
+                                // MOVE COIN
+                                // =================================================
+
+                                bestNode?.let {
+
+                                        destination ->
+
+                                    if (
+                                        bestScore > 0.5f
+                                    ) {
+
+                                        coinNodes =
+                                            coinNodes
+                                                .toMutableList()
+                                                .also {
+
+                                                    it[coinIndex] =
+                                                        destination
+                                                }
+                                    }
+                                }
                             }
-                        },
 
 
-                        // =========================================
-                        // DRAG CANCEL
-                        // =========================================
+                            // =================================================
+                            // RESET AFTER DRAG
+                            // =================================================
 
-                        onDragCancel = {
-                            selectedCoinIndex = -1
-                            highlightedNodes = emptyList()
+                            selectedCoinIndex =
+                                -1
+
+                            highlightedNodes =
+                                emptyList()
                         }
-                    )
+
+                        // IMPORTANT:
+                        // If it was only a click, we DO NOT reset selection.
+                        // Therefore green nodes remain visible.
+                    }
                 }
+
 
         ) {
 
