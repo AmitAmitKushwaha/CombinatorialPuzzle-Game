@@ -1,116 +1,243 @@
 package com.example.combinatorialpuzzle
 
 import android.os.Bundle
-import com.example.combinatorialpuzzle.ui1.GameScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
 import com.example.combinatorialpuzzle.ui.theme.CombinatorialPuzzleTheme
+import com.example.combinatorialpuzzle.ui1.GameScreen
 import com.example.combinatorialpuzzle.ui1.SettingsScreen
 
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge()
+
         setContent {
+
             CombinatorialPuzzleTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()
-                ) { innerPadding ->
-                    Greeting(modifier = Modifier.padding(innerPadding))
-                }
+
+                Greeting(
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
 }
 
+
 @Composable
-fun Greeting(modifier: Modifier) {
+fun Greeting(
+    modifier: Modifier = Modifier
+) {
+
     var currentScreen by remember {
         mutableStateOf("home")
     }
 
+
     when (currentScreen) {
 
+        // =================================================
+        // HOME SCREEN
+        // =================================================
+
         "home" -> {
-            Column(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+
+            Box(
+                modifier = modifier.fillMaxSize()
             ) {
 
-                Text(
-                    text ="🧩",
-                    fontSize = 120.sp,
+                // =================================================
+                // BACKGROUND IMAGE
+                // =================================================
 
+                Image(
+                    painter = painterResource(
+                        R.drawable.game_background1
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
 
-                Text(
-                    text = "Welcome to",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.Red
-                )
 
-                Text(
-                    text = "Combinatorial Puzzle Game",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Blue
-                )
+                // =================================================
+                // HOME CONTENT
+                // =================================================
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Column(
 
-                Text(
-                    text = "Challenge your mind with exciting \n combinatorial puzzles!",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center
-                )
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
 
-                Spacer(modifier = Modifier.height(30.dp))
+                    horizontalAlignment =
+                        Alignment.CenterHorizontally,
 
-                Button(
-                    onClick = {
-                        currentScreen = "game"
-                    }
+                    verticalArrangement =
+                        Arrangement.Center
+
                 ) {
-                    Text("PLAY")
-                }
 
-                Button(
-                    onClick = {
-                        currentScreen = "settings"
+                    Text(
+                        text = "🧩",
+                        fontSize = 100.sp
+                    )
+
+
+                    Text(
+                        text = "Welcome to",
+
+                        style =
+                            MaterialTheme.typography.headlineMedium,
+
+                        color = Color.White
+                    )
+
+
+                    Text(
+                        text = "Combinatorial Puzzle Game",
+
+                        style =
+                            MaterialTheme.typography.headlineMedium,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        color = Color(0xFFFF9800),
+
+                        textAlign = TextAlign.Center
+                    )
+
+
+                    Spacer(
+                        modifier = Modifier.height(16.dp)
+                    )
+
+
+                    Text(
+                        text =
+                            "Challenge your mind with exciting\ncombinatorial puzzles!",
+
+                        style =
+                            MaterialTheme.typography.bodyLarge,
+
+                        color = Color.White,
+
+                        textAlign = TextAlign.Center
+                    )
+
+
+                    Spacer(
+                        modifier = Modifier.height(30.dp)
+                    )
+
+
+                    // =================================================
+                    // PLAY BUTTON
+                    // =================================================
+
+                    Button(
+                        onClick = {
+                            currentScreen = "game"
+                        }
+                    ) {
+
+                        Text(
+                            text = "PLAY"
+                        )
                     }
-                ) {
-                    Text("SETTINGS")
-                }
 
+
+                    Spacer(
+                        modifier = Modifier.height(12.dp)
+                    )
+
+
+                    // =================================================
+                    // SETTINGS BUTTON
+                    // =================================================
+
+                    Button(
+                        onClick = {
+                            currentScreen = "settings"
+                        }
+                    ) {
+
+                        Text(
+                            text = "SETTINGS"
+                        )
+                    }
+                }
             }
         }
-        "game" -> GameScreen(
-            onBackClick ={
-                currentScreen = "home"
-            }
-        )
-        "settings" -> SettingsScreen(
-            onBackClick = {
-                currentScreen = "home"
-            }
+
+
+        // =================================================
+        // GAME SCREEN
+        // =================================================
+
+        "game" -> {
+
+            GameScreen(
+                onBackClick = {
+                    currentScreen = "home"
+                }
+            )
+        }
+
+
+        // =================================================
+        // SETTINGS SCREEN
+        // =================================================
+
+        "settings" -> {
+
+            SettingsScreen(
+                onBackClick = {
+                    currentScreen = "home"
+                }
+            )
+        }
+    }
+}
+
+
+// =====================================================
+// PREVIEW
+// =====================================================
+
+@Preview(
+    showBackground = true,
+    widthDp = 360,
+    heightDp = 700
+)
+@Composable
+fun HomeScreenPreview() {
+
+    CombinatorialPuzzleTheme {
+
+        Greeting(
+            modifier = Modifier.fillMaxSize()
         )
     }
 }

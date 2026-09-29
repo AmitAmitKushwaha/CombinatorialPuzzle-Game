@@ -2,8 +2,8 @@ package com.example.combinatorialpuzzle.ui1
 
 import android.content.Context
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,14 +29,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import kotlin.math.sqrt
-import androidx.compose.ui.res.imageResource
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import com.example.combinatorialpuzzle.R
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.gestures.awaitFirstDown
 
 // =====================================================
 // GAME SCREEN
@@ -67,7 +68,7 @@ fun GameScreen(
 
 
     // =================================================
-    // JSON FILE FOR CURRENT LEVEL
+    // JSON FILE
     // =================================================
 
     val jsonFileName = "PuzzleGraph$level.json"
@@ -93,8 +94,9 @@ fun GameScreen(
             }
         )
 
+
         // =================================================
-        // WIN SCREEN
+        // WIN MESSAGE
         // =================================================
 
         if (won) {
@@ -103,7 +105,6 @@ fun GameScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 140.dp),
-
                 contentAlignment = Alignment.TopCenter
             ) {
 
@@ -124,17 +125,21 @@ fun GameScreen(
 
                 level++
 
-                won = false
-
                 if (level > 7) {
                     level = 1
                 }
+
+                won = false
             },
 
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(bottom = 70.dp)
+                .padding(
+                    start = 40.dp,
+                    end = 40.dp,
+                    bottom = 70.dp
+                )
         ) {
 
             Text(
@@ -155,7 +160,11 @@ fun GameScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(top = 70.dp)
+                .padding(
+                    start = 40.dp,
+                    end = 40.dp,
+                    top = 70.dp
+                )
         ) {
 
             Text(
@@ -164,10 +173,6 @@ fun GameScreen(
         }
     }
 }
-
-
-
-
 
 
 // =====================================================
@@ -215,8 +220,7 @@ fun loadGraphFromJson(
             }
 
 
-    val root =
-        JSONObject(text)
+    val root = JSONObject(text)
 
 
     // =================================================
@@ -315,7 +319,7 @@ fun loadGraphFromJson(
 
 
     // =================================================
-    // RETURN GRAPH DATA
+    // RETURN
     // =================================================
 
     return GraphData(
@@ -326,13 +330,6 @@ fun loadGraphFromJson(
         winNode = winNode
     )
 }
-
-
-
-
-
-
-
 
 
 // =====================================================
@@ -396,31 +393,27 @@ fun GraphFromJson(
         mutableIntStateOf(-1)
     }
 
+
+    // =================================================
+    // HIGHLIGHTED NODES
+    // =================================================
+
     var highlightedNodes by remember(jsonFileName) {
-        mutableStateOf<List<Int>>(emptyList())
-    }
 
-
-    // =================================================
-    // DRAG START
-    // =================================================
-
-    var dragStart by remember(jsonFileName) {
-
-        mutableStateOf(
-            Offset.Zero
+        mutableStateOf<Set<Int>>(
+            emptySet()
         )
     }
 
 
     // =================================================
-    // DRAG END
+    // HIGHLIGHTED EDGES
     // =================================================
 
-    var dragEnd by remember(jsonFileName) {
+    var highlightedEdges by remember(jsonFileName) {
 
-        mutableStateOf(
-            Offset.Zero
+        mutableStateOf<Set<Pair<Int, Int>>>(
+            emptySet()
         )
     }
 
@@ -441,25 +434,36 @@ fun GraphFromJson(
     // GRAPH BOUNDS
     // =================================================
 
-    val minX = graph.nodes.minOfOrNull { it.x } ?: 0f
+    val minX =
+        graph.nodes.minOfOrNull {
+            it.x
+        } ?: 0f
 
 
-    val maxX = graph.nodes.maxOfOrNull { it.x } ?: 1f
+    val maxX =
+        graph.nodes.maxOfOrNull {
+            it.x
+        } ?: 1f
 
 
-    val minY = graph.nodes.minOfOrNull { it.y } ?: 0f
+    val minY =
+        graph.nodes.minOfOrNull {
+            it.y
+        } ?: 0f
 
 
-    val maxY = graph.nodes.maxOfOrNull { it.y } ?: 1f
+    val maxY =
+        graph.nodes.maxOfOrNull {
+            it.y
+        } ?: 1f
 
 
     // =================================================
-    // TARGET COIN
+    // TARGET COIN INDEX
     // =================================================
 
     val targetCoinIndex =
         graph.coins.indexOfFirst {
-
             it.id == graph.targetCoin
         }
 
@@ -492,6 +496,7 @@ fun GraphFromJson(
         }
     }
 
+
     // =================================================
     // POSITION FUNCTION
     // =================================================
@@ -508,10 +513,12 @@ fun GraphFromJson(
         val padding = 30f
 
 
-        val graphWidth = maxX - minX
+        val graphWidth =
+            maxX - minX
 
 
-        val graphHeight = maxY - minY
+        val graphHeight =
+            maxY - minY
 
 
         val safeGraphWidth =
@@ -530,35 +537,49 @@ fun GraphFromJson(
             }
 
 
-        val scaleX = (canvasSize.width - padding * 2f) / safeGraphWidth
+        val scaleX =
+            (canvasSize.width - padding * 2f) /
+                    safeGraphWidth
 
 
-        val scaleY = (canvasSize.height - padding * 2f) / safeGraphHeight
+        val scaleY =
+            (canvasSize.height - padding * 2f) /
+                    safeGraphHeight
 
 
         val scale =
-            minOf(scaleX, scaleY)
+            minOf(
+                scaleX,
+                scaleY
+            )
 
 
-        val actualWidth = safeGraphWidth * scale
+        val actualWidth =
+            safeGraphWidth * scale
 
 
-        val actualHeight = safeGraphHeight * scale
+        val actualHeight =
+            safeGraphHeight * scale
 
 
-        val offsetX = (canvasSize.width - actualWidth) / 2f
+        val offsetX =
+            (canvasSize.width - actualWidth) / 2f
 
 
-        val offsetY = (canvasSize.height - actualHeight) / 2f
+        val offsetY =
+            (canvasSize.height - actualHeight) / 2f
 
 
         return Offset(
-
             x =
-                offsetX + (node.x - minX) * scale,
+                offsetX +
+                        (node.x - minX) *
+                        scale,
 
             y =
-                offsetY + (node.y - minY) * scale
+                offsetY +
+                        (node.y - minY) *
+                        scale
         )
     }
 
@@ -588,7 +609,7 @@ fun GraphFromJson(
 
 
     // =================================================
-    // CHECK DESTINATION OCCUPIED
+    // CHECK OCCUPIED
     // =================================================
 
     fun isOccupied(
@@ -596,13 +617,14 @@ fun GraphFromJson(
         movingCoinIndex: Int
     ): Boolean {
 
-        return coinNodes.withIndex().any {
-                (index, coinNode) ->
+        return coinNodes.withIndex().any { (index, coinNode) ->
 
             index != movingCoinIndex &&
                     coinNode == nodeId
         }
     }
+
+    val coroutineScope = rememberCoroutineScope()
 
 
     // =================================================
@@ -614,13 +636,11 @@ fun GraphFromJson(
     ): List<Int> {
 
         return graph.edges
-
             .filter { edge ->
 
                 edge.first == nodeId ||
                         edge.second == nodeId
             }
-
             .map { edge ->
 
                 if (edge.first == nodeId) {
@@ -629,16 +649,12 @@ fun GraphFromJson(
                     edge.first
                 }
             }
-
             .distinct()
     }
 
 
     // =================================================
-    // NEW RULE:
-    //
-    // DESTINATION IS BLOCKED IF ANOTHER COIN IS
-    // ON ANY NODE ADJACENT TO THE DESTINATION.
+    // BLOCKED BY NEARBY COIN
     // =================================================
 
     fun isBlockedByNearbyCoin(
@@ -646,92 +662,461 @@ fun GraphFromJson(
         movingCoinIndex: Int
     ): Boolean {
 
-        // Find nodes adjacent to destination
         val nearbyNodes =
             getAdjacentNodes(
                 destinationNode
             )
 
 
-        // Check whether another coin is
-        // on one of those nearby nodes
-        return coinNodes.withIndex().any {
-                (index, coinNode) ->
+        return coinNodes.withIndex().any { (index, coinNode) ->
 
             index != movingCoinIndex &&
                     coinNode in nearbyNodes
         }
     }
 
-    // =====================================================
-// SELECT COIN
-// =====================================================
 
-    fun selectCoinAt(touchPosition: Offset) {
+    // =================================================
+    // CHECK WHETHER NODE CAN BE ENTERED
+    // =================================================
+
+    fun canMoveTo(
+        nodeId: Int,
+        movingCoinIndex: Int
+    ): Boolean {
+
+        if (
+            isOccupied(
+                nodeId = nodeId,
+                movingCoinIndex = movingCoinIndex
+            )
+        ) {
+            return false
+        }
+
+
+        if (
+            isBlockedByNearbyCoin(
+                destinationNode = nodeId,
+                movingCoinIndex = movingCoinIndex
+            )
+        ) {
+            return false
+        }
+
+
+        return true
+    }
+
+
+    // =================================================
+    // FIND ALL REACHABLE NODES
+    // =================================================
+
+    fun findAllReachableNodes(
+        startNode: Int,
+        movingCoinIndex: Int
+    ): Pair<Set<Int>, Set<Pair<Int, Int>>> {
+
+        val queue =
+            ArrayDeque<Int>()
+
+
+        val visited =
+            mutableSetOf<Int>()
+
+
+        queue.add(startNode)
+
+        visited.add(startNode)
+
+
+        // =================================================
+        // BFS
+        // =================================================
+
+        while (queue.isNotEmpty()) {
+
+            val currentNode =
+                queue.removeFirst()
+
+
+            val neighbors =
+                getAdjacentNodes(
+                    currentNode
+                )
+
+
+            for (nextNode in neighbors) {
+
+                if (nextNode in visited) {
+                    continue
+                }
+
+
+                if (
+                    !canMoveTo(
+                        nodeId = nextNode,
+                        movingCoinIndex = movingCoinIndex
+                    )
+                ) {
+                    continue
+                }
+
+
+                visited.add(nextNode)
+
+                queue.add(nextNode)
+            }
+        }
+
+
+        // =================================================
+        // DESTINATION NODES
+        // =================================================
+
+        val reachableNodes =
+            visited
+                .filter {
+                    it != startNode
+                }
+                .toSet()
+
+
+        // =================================================
+        // EDGES
+        // =================================================
+
+        val reachableEdges =
+            graph.edges
+                .filter { edge ->
+
+                    edge.first in visited &&
+                            edge.second in visited
+                }
+                .map {
+
+                    Pair(
+                        minOf(
+                            it.first,
+                            it.second
+                        ),
+
+                        maxOf(
+                            it.first,
+                            it.second
+                        )
+                    )
+                }
+                .toSet()
+
+
+        return Pair(
+            reachableNodes,
+            reachableEdges
+        )
+    }
+
+
+    // =================================================
+    // FIND PATH
+    // =================================================
+
+    fun findPath(
+        startNode: Int,
+        destinationNode: Int,
+        movingCoinIndex: Int
+    ): List<Int> {
+
+        val queue =
+            ArrayDeque<Int>()
+
+
+        val visited =
+            mutableSetOf<Int>()
+
+
+        val parent =
+            mutableMapOf<Int, Int?>()
+
+
+        queue.add(startNode)
+
+        visited.add(startNode)
+
+        parent[startNode] = null
+
+
+        while (queue.isNotEmpty()) {
+
+            val current =
+                queue.removeFirst()
+
+
+            if (current == destinationNode) {
+                break
+            }
+
+
+            for (next in getAdjacentNodes(current)) {
+
+                if (next in visited) {
+                    continue
+                }
+
+
+                if (
+                    !canMoveTo(
+                        nodeId = next,
+                        movingCoinIndex = movingCoinIndex
+                    )
+                ) {
+                    continue
+                }
+
+
+                visited.add(next)
+
+                parent[next] = current
+
+                queue.add(next)
+            }
+        }
+
+
+        // =================================================
+        // NO PATH
+        // =================================================
+
+        if (destinationNode !in parent) {
+            return emptyList()
+        }
+
+
+        // =================================================
+        // BUILD PATH
+        // =================================================
+
+        val path =
+            mutableListOf<Int>()
+
+
+        var current: Int? =
+            destinationNode
+
+
+        while (current != null) {
+
+            path.add(current)
+
+            current = parent[current]
+        }
+
+
+        path.reverse()
+
+
+        return path
+    }
+
+
+    // =================================================
+    // MOVE COIN STEP BY STEP
+    // =================================================
+
+    suspend fun moveSelectedCoinToNode(
+        destinationNode: Int
+    ) {
+
+        val coinIndex =
+            selectedCoinIndex
+
+
+        if (coinIndex == -1) {
+            return
+        }
+
+
+        // =================================================
+        // DESTINATION MUST BE GREEN
+        // =================================================
+
+        if (destinationNode !in highlightedNodes) {
+            return
+        }
+
+
+        // =================================================
+        // FIND PATH
+        // =================================================
+
+        val startNode =
+            coinNodes[coinIndex]
+
+
+        val path =
+            findPath(
+                startNode = startNode,
+                destinationNode = destinationNode,
+                movingCoinIndex = coinIndex
+            )
+
+
+        if (path.isEmpty()) {
+            return
+        }
+
+
+        // =================================================
+        // MOVE STEP BY STEP
+        // =================================================
+
+        for (node in path.drop(1)) {
+
+            coinNodes =
+                coinNodes
+                    .toMutableList()
+                    .also {
+                        it[coinIndex] = node
+                    }
+
+
+            // You can increase this for slower animation.
+            delay(300)
+        }
+
+
+        // =================================================
+        // CLEAR SELECTION
+        // =================================================
 
         selectedCoinIndex = -1
-        highlightedNodes = emptyList()
+
+        highlightedNodes = emptySet()
+
+        highlightedEdges = emptySet()
+    }
+
+
+    // =================================================
+    // FIND GREEN NODE CLICKED
+    // =================================================
+
+    fun findClickedHighlightedNode(
+        touchPosition: Offset
+    ): Int? {
+
+        for (nodeId in highlightedNodes) {
+
+            val node =
+                nodeMap[nodeId]
+                    ?: continue
+
+
+            val nodePosition =
+                position(node)
+
+
+            val dx =
+                touchPosition.x -
+                        nodePosition.x
+
+
+            val dy =
+                touchPosition.y -
+                        nodePosition.y
+
+
+            val distance =
+                sqrt(
+                    dx * dx +
+                            dy * dy
+                )
+
+
+            if (distance < 35f) {
+                return nodeId
+            }
+        }
+
+
+        return null
+    }
+
+
+    // =================================================
+    // SELECT COIN
+    // =================================================
+
+    fun selectCoinAt(
+        touchPosition: Offset
+    ) {
 
         graph.coins.forEachIndexed { index, _ ->
 
-            val nodeId = coinNodes[index]
+            val nodeId =
+                coinNodes[index]
 
-            val node = nodeMap[nodeId]
 
-            if (node != null) {
+            val node =
+                nodeMap[nodeId]
+                    ?: return@forEachIndexed
 
-                val coinPosition = position(node)
 
-                val dx =
-                    touchPosition.x - coinPosition.x
+            val coinPosition =
+                position(node)
 
-                val dy =
-                    touchPosition.y - coinPosition.y
 
-                val distance =
-                    sqrt(
-                        dx * dx +
-                                dy * dy
+            val dx =
+                touchPosition.x -
+                        coinPosition.x
+
+
+            val dy =
+                touchPosition.y -
+                        coinPosition.y
+
+
+            val distance =
+                sqrt(
+                    dx * dx +
+                            dy * dy
+                )
+
+
+            if (distance < 30f) {
+
+                // =================================================
+                // SELECT COIN
+                // =================================================
+
+                selectedCoinIndex = index
+
+
+                // =================================================
+                // FIND REACHABLE AREA
+                // =================================================
+
+                val result =
+                    findAllReachableNodes(
+                        startNode = nodeId,
+                        movingCoinIndex = index
                     )
 
-                // Coin click area
-                if (distance < 70f) {
 
-                    // Select this coin
-                    selectedCoinIndex = index
+                highlightedNodes =
+                    result.first
 
-                    // Find valid adjacent nodes
-                    val currentNode =
-                        coinNodes[index]
 
-                    val validNodes =
-                        getAdjacentNodes(currentNode)
-                            .filter { destinationNode ->
+                highlightedEdges =
+                    result.second
 
-                                // Destination must be empty
-                                !isOccupied(
-                                    destinationNode,
-                                    index
-                                )
-                            }
-                            .filter { destinationNode ->
 
-                                // Destination must not be
-                                // blocked by nearby coin
-                                !isBlockedByNearbyCoin(
-                                    destinationNode,
-                                    index
-                                )
-                            }
-
-                    // Make valid nodes green
-                    highlightedNodes = validNodes
-
-                    return@forEachIndexed
-                }
+                return@forEachIndexed
             }
         }
     }
+
 
     // =================================================
     // GRAPH BOX
@@ -742,6 +1127,12 @@ fun GraphFromJson(
         contentAlignment = Alignment.Center
     ) {
 
+        Image(
+            painter = painterResource(R.drawable.game_background2),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
 
         // =================================================
         // CANVAS
@@ -749,346 +1140,96 @@ fun GraphFromJson(
 
         Canvas(
 
-            modifier = Modifier
+            modifier =
+                Modifier
+                    .size(
+                        width = 600.dp,
+                        height = 600.dp
+                    )
 
-                .size(
-                    width = 600.dp,
-                    height = 600.dp
-                )
+                    .onSizeChanged {
+                        canvasSize = it
+                    }
 
-                .background(
-                    Color.White
-                )
+                    .pointerInput(
+                        jsonFileName,
+                        canvasSize,
+                        coinNodes,
+                        selectedCoinIndex,
+                        highlightedNodes
+                    ) {
 
-                .onSizeChanged {
-
-                    canvasSize = it
-                }
-                .pointerInput(
-                    jsonFileName,
-                    canvasSize,
-                    coinNodes
-                ) {
-
-                    awaitEachGesture {
-
-                        // =================================================
-                        // WAIT FOR FIRST TOUCH
-                        // =================================================
-
-                        val down =
-                            awaitFirstDown(
-                                requireUnconsumed = false
-                            )
-
-                        val touchPosition =
-                            down.position
-
-
-                        // =================================================
-                        // CLICK / SELECT COIN
-                        // =================================================
-
-                        selectCoinAt(
-                            touchPosition
-                        )
-
-
-                        // Remember which coin was selected
-                        val coinIndex =
-                            selectedCoinIndex
-
-
-                        // =================================================
-                        // WAIT TO SEE WHETHER USER DRAGS
-                        // =================================================
-
-                        val dragStartChange =
-                            awaitTouchSlopOrCancellation(
-                                down.id
-                            ) { change, _ ->
-
-                                change.consume()
-                            }
-
-
-                        // =================================================
-                        // DRAG STARTED
-                        // =================================================
-
-                        if (
-                            dragStartChange != null &&
-                            coinIndex != -1
-                        ) {
-
-                            dragStart =
-                                touchPosition
-
-                            dragEnd =
-                                dragStartChange.position
-
+                        awaitEachGesture {
 
                             // =================================================
-                            // CONTINUE DRAG
+                            // FIRST TOUCH
                             // =================================================
 
-                            drag(
-                                dragStartChange.id
-                            ) { change ->
-
-                                dragEnd =
-                                    change.position
-
-                                change.consume()
-                            }
-
-
-                            // =================================================
-                            // DRAG FINISHED
-                            // =================================================
-
-                            val currentNode =
-                                coinNodes[coinIndex]
-
-
-                            // =================================================
-                            // DRAG DIRECTION
-                            // =================================================
-
-                            val dx =
-                                dragEnd.x - dragStart.x
-
-                            val dy =
-                                dragEnd.y - dragStart.y
-
-
-                            val dragDistance =
-                                sqrt(
-                                    dx * dx +
-                                            dy * dy
+                            val down =
+                                awaitFirstDown(
+                                    requireUnconsumed = false
                                 )
 
 
+                            val touchPosition =
+                                down.position
+
+
+                            // =================================================
+                            // FIRST:
+                            // CHECK GREEN NODE
+                            // =================================================
+
                             if (
-                                dragDistance > 20f
+                                selectedCoinIndex != -1 &&
+                                highlightedNodes.isNotEmpty()
                             ) {
 
-                                val dragUnitX =
-                                    dx / dragDistance
-
-                                val dragUnitY =
-                                    dy / dragDistance
-
-
-                                // =================================================
-                                // FIND ADJACENT NODES
-                                // =================================================
-
-                                val adjacentNodes =
-                                    getAdjacentNodes(
-                                        currentNode
+                                val clickedNode =
+                                    findClickedHighlightedNode(
+                                        touchPosition
                                     )
+                                if (clickedNode != null) {
 
+                                    coroutineScope.launch {
 
-                                // =================================================
-                                // FIND BEST DESTINATION
-                                // =================================================
-
-                                var bestNode: Int? =
-                                    null
-
-                                var bestScore =
-                                    -Float.MAX_VALUE
-
-
-                                for (
-                                adjacentNode
-                                in adjacentNodes
-                                ) {
-
-                                    // -----------------------------------------
-                                    // MUST BE ADJACENT
-                                    // -----------------------------------------
-
-                                    if (
-                                        !isAdjacent(
-                                            currentNode,
-                                            adjacentNode
+                                        moveSelectedCoinToNode(
+                                            destinationNode = clickedNode
                                         )
-                                    ) {
-                                        continue
                                     }
 
-
-                                    // -----------------------------------------
-                                    // DESTINATION HAS COIN
-                                    // -----------------------------------------
-
-                                    if (
-                                        isOccupied(
-                                            adjacentNode,
-                                            coinIndex
-                                        )
-                                    ) {
-                                        continue
-                                    }
-
-
-                                    // -----------------------------------------
-                                    // BLOCKED BY NEARBY COIN
-                                    // -----------------------------------------
-
-                                    if (
-                                        isBlockedByNearbyCoin(
-                                            adjacentNode,
-                                            coinIndex
-                                        )
-                                    ) {
-                                        continue
-                                    }
-
-
-                                    // -----------------------------------------
-                                    // GET GRAPH NODES
-                                    // -----------------------------------------
-
-                                    val currentGraphNode =
-                                        nodeMap[currentNode]
-
-                                    val nextGraphNode =
-                                        nodeMap[adjacentNode]
-
-
-                                    if (
-                                        currentGraphNode != null &&
-                                        nextGraphNode != null
-                                    ) {
-
-                                        val currentPosition =
-                                            position(
-                                                currentGraphNode
-                                            )
-
-                                        val nextPosition =
-                                            position(
-                                                nextGraphNode
-                                            )
-
-
-                                        // -----------------------------------------
-                                        // NODE DIRECTION
-                                        // -----------------------------------------
-
-                                        val nodeDx =
-                                            nextPosition.x -
-                                                    currentPosition.x
-
-                                        val nodeDy =
-                                            nextPosition.y -
-                                                    currentPosition.y
-
-
-                                        val nodeDistance =
-                                            sqrt(
-                                                nodeDx * nodeDx +
-                                                        nodeDy * nodeDy
-                                            )
-
-
-                                        if (
-                                            nodeDistance > 0f
-                                        ) {
-
-                                            val nodeUnitX =
-                                                nodeDx /
-                                                        nodeDistance
-
-                                            val nodeUnitY =
-                                                nodeDy /
-                                                        nodeDistance
-
-
-                                            // -----------------------------------------
-                                            // DOT PRODUCT
-                                            // -----------------------------------------
-
-                                            val score =
-                                                dragUnitX * nodeUnitX +
-                                                        dragUnitY * nodeUnitY
-
-
-                                            if (
-                                                score >
-                                                bestScore
-                                            ) {
-
-                                                bestScore =
-                                                    score
-
-                                                bestNode =
-                                                    adjacentNode
-                                            }
-                                        }
-                                    }
-                                }
-
-
-                                // =================================================
-                                // MOVE COIN
-                                // =================================================
-
-                                bestNode?.let {
-
-                                        destination ->
-
-                                    if (
-                                        bestScore > 0.5f
-                                    ) {
-
-                                        coinNodes =
-                                            coinNodes
-                                                .toMutableList()
-                                                .also {
-
-                                                    it[coinIndex] =
-                                                        destination
-                                                }
-                                    }
+                                    return@awaitEachGesture
                                 }
                             }
 
 
                             // =================================================
-                            // RESET AFTER DRAG
+                            // SECOND:
+                            // CHECK COIN
                             // =================================================
 
-                            selectedCoinIndex =
-                                -1
-
-                            highlightedNodes =
-                                emptyList()
+                            selectCoinAt(
+                                touchPosition
+                            )
                         }
-
-                        // IMPORTANT:
-                        // If it was only a click, we DO NOT reset selection.
-                        // Therefore green nodes remain visible.
                     }
-                }
-
 
         ) {
 
-            // =====================================================
-            // DRAWING
-            // =====================================================
+            // =================================================
+            // DRAWING VALUES
+            // =================================================
 
-            val padding = 30f
-
-
-            val graphWidth = maxX - minX
+            val padding =
+                30f
 
 
-            val graphHeight = maxY - minY
+            val graphWidth =
+                maxX - minX
+
+
+            val graphHeight =
+                maxY - minY
 
 
             val safeGraphWidth =
@@ -1140,14 +1281,15 @@ fun GraphFromJson(
                 (size.height - actualHeight) / 2f
 
 
-            // =====================================================
+            // =================================================
             // DRAW EDGES
-            // =====================================================
+            // =================================================
 
             graph.edges.forEach { edge ->
 
                 val node1 =
                     nodeMap[edge.first]
+
 
                 val node2 =
                     nodeMap[edge.second]
@@ -1158,59 +1300,123 @@ fun GraphFromJson(
                     node2 != null
                 ) {
 
+                    val edgeKey =
+                        Pair(
+                            minOf(
+                                edge.first,
+                                edge.second
+                            ),
+
+                            maxOf(
+                                edge.first,
+                                edge.second
+                            )
+                        )
+
+
+                    val start =
+                        Offset(
+                            x =
+                                offsetX +
+                                        (node1.x - minX) *
+                                        scale,
+
+                            y =
+                                offsetY +
+                                        (node1.y - minY) *
+                                        scale
+                        )
+
+
+                    val end =
+                        Offset(
+                            x =
+                                offsetX +
+                                        (node2.x - minX) *
+                                        scale,
+
+                            y =
+                                offsetY +
+                                        (node2.y - minY) *
+                                        scale
+                        )
+
+
                     drawLine(
 
-                        color = Color.Black,
+                        color =
+                            if (
+                                edgeKey in highlightedEdges
+                            ) {
+                                Color.Green
+                            } else {
+                                Color.Black
+                            },
 
-                        start = Offset(
+                        start = start,
 
-                            x =
-                                offsetX + (node1.x - minX) * scale,
+                        end = end,
 
-                            y =
-                                offsetY + (node1.y - minY) * scale
-                        ),
-
-                        end = Offset(
-
-                            x =
-                                offsetX + (node2.x - minX) * scale,
-
-                            y =
-                                offsetY + (node2.y - minY) * scale
-                        ),
-
-                        strokeWidth = 3f
+                        strokeWidth =
+                            if (
+                                edgeKey in highlightedEdges
+                            ) {
+                                6f
+                            } else {
+                                3f
+                            }
                     )
                 }
             }
 
-            // ================================================
+
+            // =================================================
             // DRAW NODES
-            // ================================================
-
-
-// ================================================
-// DRAW NODES
-// ================================================
+            // =================================================
 
             graph.nodes.forEach { node ->
 
+                val nodePosition =
+                    Offset(
+                        x =
+                            offsetX +
+                                    (node.x - minX) *
+                                    scale,
+
+                        y =
+                            offsetY +
+                                    (node.y - minY) *
+                                    scale
+                    )
+
+
                 drawCircle(
+
                     color =
                         when {
 
+                            // =================================
                             // WIN NODE
+                            // =================================
+
                             node.id == graph.winNode -> {
                                 Color.Red
                             }
 
-                            // VALID MOVE NODE
+
+                            // =================================
+                            // REACHABLE NODE
+                            // =================================
+
                             node.id in highlightedNodes -> {
                                 Color.Green
                             }
 
+
+                            // =================================
                             // NORMAL NODE
+                            // =================================
+
                             else -> {
                                 Color.DarkGray
                             }
@@ -1218,20 +1424,16 @@ fun GraphFromJson(
 
                     radius = 11f,
 
-                    center = Offset(
-                        x = offsetX + (node.x - minX) * scale,
-                        y = offsetY + (node.y - minY) * scale
-                    )
+                    center = nodePosition
                 )
             }
-            // =====================================================
+
+
+            // =================================================
             // DRAW COINS
-            // =====================================================
+            // =================================================
 
-            graph.coins.forEachIndexed {
-
-                    coinIndex,
-                    coin ->
+            graph.coins.forEachIndexed { coinIndex, coin ->
 
                 val currentNodeId =
                     coinNodes[coinIndex]
@@ -1243,52 +1445,82 @@ fun GraphFromJson(
 
                 if (node != null) {
 
+                    val coinPosition =
+                        Offset(
+                            x =
+                                offsetX +
+                                        (node.x - minX) *
+                                        scale,
+
+                            y =
+                                offsetY +
+                                        (node.y - minY) *
+                                        scale
+                        )
 
 
                     // =============================================
                     // COIN COLOR
                     // =============================================
+
                     val coinColor =
-                        if (coin.id == graph.targetCoin) {
-                            Color.Green    // Golden target coin
+                        if (
+                            coin.id == graph.targetCoin
+                        ) {
+
+                            // Target coin
+                            Color(0xFFFF6D00)
+
                         } else {
-                            Color.Gray    // All other coins
+
+                            Color.Gray
                         }
 
 
-
                     // =============================================
-                    // COIN POSITION
+                    // SELECTED COIN BORDER
                     // =============================================
 
-                    val coinPosition =
-                        Offset(
+                    if (
+                        coinIndex == selectedCoinIndex
+                    ) {
 
-                            x =
-                                offsetX + (node.x - minX) * scale,
-
-                            y =
-                                offsetY + (node.y - minY) * scale
+                        drawCircle(
+                            color = Color.Blue,
+                            radius = 18f,
+                            center = coinPosition,
+                            style = Stroke(4f)
                         )
+                    }
 
 
                     // =============================================
                     // COIN
                     // =============================================
 
-                    drawCircle(color = coinColor, radius = 11f, center = coinPosition)
+                    drawCircle(
+                        color = coinColor,
+                        radius = 13f,
+                        center = coinPosition
+                    )
 
 
                     // =============================================
-                    // RED BORDER
+                    // RED OUTER BORDER
                     // =============================================
 
-                    drawCircle(color = Color.Red,radius = 12f,center = coinPosition,style = Stroke(5f))
+                    drawCircle(
+                        color = Color.Red,
+                        radius = 15f,
+                        center = coinPosition,
+                        style = Stroke(3f)
+                    )
                 }
             }
         }
     }
 }
+
 
 // =====================================================
 // PREVIEW
@@ -1304,7 +1536,6 @@ fun GameScreenPreview() {
 
     GameScreen(
         onBackClick = {},
-        startLevel = 5
-
+        startLevel = 6
     )
 }
