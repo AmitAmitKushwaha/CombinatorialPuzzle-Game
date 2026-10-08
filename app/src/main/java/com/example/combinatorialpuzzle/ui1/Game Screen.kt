@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,12 +21,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -38,6 +40,22 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.example.combinatorialpuzzle.R
+import androidx.compose.ui.unit.sp
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 
 // =====================================================
 // GAME SCREEN
@@ -58,12 +76,57 @@ fun GameScreen(
     }
 
 
+
+
+    var undoRequest by remember {
+        mutableIntStateOf(0)
+    }
+
     // =================================================
     // WIN STATE
     // =================================================
 
     var won by remember {
         mutableStateOf(false)
+    }
+
+
+    var showInstruction by remember { mutableStateOf(level==1) }
+    var displayedInstruction by remember { mutableStateOf("") }
+
+    val instructionText =
+        "👆 Drag the log/apple to a connected adjacent node.\n" +
+                "🚫 A move is blocked if another log/apple is next to the destination node.\n" +
+                "🎯 Reach the basket to complete the level!"
+
+
+    LaunchedEffect(level) {
+
+        if (level != 1) {
+            showInstruction = false
+            return@LaunchedEffect
+        }
+
+        showInstruction = true
+        displayedInstruction = ""
+
+        // Show words one by one
+        for (word in instructionText.split(" ")) {
+            displayedInstruction =
+                if (displayedInstruction.isEmpty()) {
+                    word
+                } else {
+                    "$displayedInstruction $word"
+                }
+
+            delay(200.milliseconds)   // speed of words appearing
+        }
+
+        // Keep complete instruction visible
+        delay(2100.milliseconds)
+
+        // Disappear
+        showInstruction = false
     }
 
 
@@ -77,10 +140,25 @@ fun GameScreen(
     // =================================================
     // SCREEN
     // =================================================
-
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
+
+
+        // ==========================================
+        // FULL SCREEN BACKGROUND
+        // ==========================================
+
+        Image(
+            painter = painterResource(
+                R.drawable.game_background3
+            ),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
 
         // =================================================
         // GRAPH
@@ -89,90 +167,230 @@ fun GameScreen(
         GraphFromJson(
             context = LocalContext.current,
             jsonFileName = jsonFileName,
+            undoRequest = undoRequest,
             onWin = {
                 won = true
+            },
+            onUndo = {
+                won = false
             }
         )
 
 
-        // =================================================
-        // WIN MESSAGE
-        // =================================================
-
-        if (won) {
+            // =================================================
+            // LEVEL BUTTON
+            // =================================================
 
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 140.dp),
-                contentAlignment = Alignment.TopCenter
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        start = 12.dp,
+                        bottom = 80.dp
+                    )
+                    .size(
+                        width = 160.dp,
+                        height = 80.dp
+                    )
+                    .clickable {
+
+
+                        // After level 7, return to level 1
+                        if (level < 8) {
+                            level++
+                        }
+
+                        // Reset win state
+                        won = false
+                    },
+                contentAlignment = Alignment.Center
             ) {
 
+                // Wooden level PNG
+                Image(
+                    painter = painterResource(
+                        R.drawable.level
+                    ),
+                    contentDescription = "Level button",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+
+                // Level text
                 Text(
-                    text = "YOU WIN!",
-                    color = Color.Red
+                    text = " 🧩Level $level",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
-        }
+
+
+            // =================================================
+            // WIN MESSAGE
+            // =================================================
+
+            if (won) {
+
+
+                Text(
+                    text = "YOU WIN",
+                    color = Color.Red,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(
+                            top = 120.dp
+                        )
+                )
+            }
+
+
+            // =================================================
+            // BACK BUTTON
+            // =================================================
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = 10.dp,
+                        bottom = 80.dp
+                    )
+                    .size(
+                        width = 160.dp,
+                        height = 80.dp
+                    )
+                    .clickable {
+                            if (level > 1) {
+                                level--
+                            } else {
+                                onBackClick()
+                            }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+
+                // Wooden level PNG
+                Image(
+                    painter = painterResource(
+                        R.drawable.level
+                    ),
+                    contentDescription = "Level button",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+
+                Text(
+                    text = "Back",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+            }
+
+
+            // =================================================
+            // UNDO BUTTON
+            // =================================================
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = 120.dp,
+                        bottom = 160.dp
+                    )
+                    .size(
+                        width = 160.dp,
+                        height = 80.dp
+                    )
+                    .clickable {
+                        undoRequest++
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+
+                Image(
+                    painter = painterResource(R.drawable.level),
+                    contentDescription = "Undo button",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+
+                Text(
+                    text = "Undo",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+            }
+
 
 
         // =================================================
-        // LEVEL BUTTON
+        //  //instruction
         // =================================================
 
-        Button(
-            onClick = {
 
-                level++
+            if (showInstruction) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(
+                            start = 1.dp,
+                            end = 1.dp,
+                            top = 55.dp
+                        )
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
 
-                if (level > 7) {
-                    level = 1
+
+                    // Background instruction image
+                    Image(
+                        painter = painterResource(id = R.drawable.instruction),
+                        contentDescription = "How to Play",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    )
+
+
+                    Text(
+                        text = displayedInstruction,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        lineHeight = 15.sp,
+                        textAlign = TextAlign.Left,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 45.dp,
+                                end = 45.dp,
+                                top = 55.dp,
+                                bottom = 25.dp
+                            )
+                    )
                 }
-
-                won = false
-            },
-
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(
-                    start = 40.dp,
-                    end = 40.dp,
-                    bottom = 70.dp
-                )
-        ) {
-
-            Text(
-                text = "Level $level"
-            )
-        }
+            }
 
 
-        // =================================================
-        // BACK BUTTON
-        // =================================================
 
-        Button(
-            onClick = {
-                onBackClick()
-            },
 
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(
-                    start = 40.dp,
-                    end = 40.dp,
-                    top = 70.dp
-                )
-        ) {
 
-            Text(
-                text = "← Back"
-            )
-        }
+
+
+
+
+
+
     }
-}
+    }
 
 
 // =====================================================
@@ -227,8 +445,7 @@ fun loadGraphFromJson(
     // NODES
     // =================================================
 
-    val nodesJson =
-        root.getJSONArray("nodes")
+    val nodesJson = root.getJSONArray("nodes")
 
     val nodes =
         mutableListOf<GraphNode>()
@@ -340,7 +557,9 @@ fun loadGraphFromJson(
 fun GraphFromJson(
     context: Context,
     jsonFileName: String,
-    onWin: () -> Unit
+    undoRequest: Int,
+    onWin: () -> Unit,
+    onUndo: () -> Unit
 ) {
 
     // =================================================
@@ -384,6 +603,10 @@ fun GraphFromJson(
     }
 
 
+    var previousCoinNodes by remember(jsonFileName) {
+        mutableStateOf<List<Int>?>(null)
+    }
+
     // =================================================
     // SELECTED COIN
     // =================================================
@@ -393,6 +616,10 @@ fun GraphFromJson(
         mutableIntStateOf(-1)
     }
 
+
+    var blockedCoinIndices by remember(jsonFileName) {
+        mutableStateOf<Set<Int>>(emptySet())
+    }
 
     // =================================================
     // HIGHLIGHTED NODES
@@ -404,19 +631,19 @@ fun GraphFromJson(
             emptySet()
         )
     }
-
-
-    // =================================================
-    // HIGHLIGHTED EDGES
-    // =================================================
-
-    var highlightedEdges by remember(jsonFileName) {
-
-        mutableStateOf<Set<Pair<Int, Int>>>(
-            emptySet()
-        )
+    var targetPosition by remember(jsonFileName) {
+        mutableStateOf(Offset.Zero)
     }
 
+    var isMoving by remember(jsonFileName) {
+        mutableStateOf(false)
+    }
+
+    val animatedPosition by animateOffsetAsState(
+        targetValue = targetPosition,
+        animationSpec = tween(250),
+        label = "coinMovement"
+    )
 
     // =================================================
     // CANVAS SIZE
@@ -496,6 +723,185 @@ fun GraphFromJson(
         }
     }
 
+    LaunchedEffect(undoRequest) {
+
+        if (undoRequest > 0 && previousCoinNodes != null && !isMoving) {
+
+            coinNodes = previousCoinNodes!!
+
+            selectedCoinIndex = -1
+            highlightedNodes = emptySet()
+            blockedCoinIndices = emptySet()
+
+            winTriggered = false
+            isMoving = false
+
+            onUndo()
+
+            previousCoinNodes = null
+        }
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    // =================================================
+    // APPLE IMAGE + ANIMATION
+    // =================================================
+
+    val appleImage = ImageBitmap.imageResource(
+        R.drawable.apple
+    )
+
+    val logImage = ImageBitmap.imageResource(
+        R.drawable.log
+    )
+
+    val basketImage = ImageBitmap.imageResource(
+        R.drawable.basket
+    )
+
+    val greenNodeImage =
+        ImageBitmap.imageResource(R.drawable.green_node)
+
+    val blackNodeImage =
+        ImageBitmap.imageResource(R.drawable.black_node)
+
+
+
+    val coinScale by animateFloatAsState(
+        targetValue =
+            if (selectedCoinIndex != -1) 1.15f else 1f,
+        animationSpec = tween(
+            durationMillis = 200),
+        label = "coinScale"
+    )
+
+
+    // =================================================
+    // RED ALERT FUNCTION
+    // =================================================
+
+
+    val redTransition = rememberInfiniteTransition(
+        label = "blockedCoinAnimation"
+    )
+
+    val redAlpha by redTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 450
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "redAlpha"
+    )
+
+    val redBorderWidth by redTransition.animateFloat(
+        initialValue = 2f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 450
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "redBorderWidth"
+    )
+
+
+    // =================================================
+    // GREEN ALERT FUNCTION
+    // =================================================
+
+    val greenTransition = rememberInfiniteTransition(
+        label = "greenNodeAnimation"
+    )
+
+    val greenAlpha by greenTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "greenAlpha"
+    )
+
+    val greenScale by greenTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.20f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "greenScale"
+    )
+
+
+    // =================================================
+// BASKET FLOAT ANIMATION
+// =================================================
+
+    val basketTransition = rememberInfiniteTransition(
+        label = "basketAnimation"
+    )
+
+    val basketFloat by basketTransition.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "basketFloat"
+    )
+
+    val basketScale by basketTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "basketScale"
+    )
+
+
+
+    // =================================================
+    // GLITTER FUNCTION
+    // =================================================
+
+
+    val infiniteTransition = rememberInfiniteTransition(
+        label = "glitterAnimation"
+    )
+
+    val glitterAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 500
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glitterAlpha"
+    )
+
+    val glitterScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 600
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glitterScale"
+    )
 
     // =================================================
     // POSITION FUNCTION
@@ -510,7 +916,7 @@ fun GraphFromJson(
         }
 
 
-        val padding = 30f
+        val padding = 50f
 
 
         val graphWidth =
@@ -585,30 +991,6 @@ fun GraphFromJson(
 
 
     // =================================================
-    // CHECK ADJACENCY
-    // =================================================
-
-    fun isAdjacent(
-        node1: Int,
-        node2: Int
-    ): Boolean {
-
-        return graph.edges.any { edge ->
-
-            (
-                    edge.first == node1 &&
-                            edge.second == node2
-                    )
-                    ||
-                    (
-                            edge.first == node2 &&
-                                    edge.second == node1
-                            )
-        }
-    }
-
-
-    // =================================================
     // CHECK OCCUPIED
     // =================================================
 
@@ -623,8 +1005,6 @@ fun GraphFromJson(
                     coinNode == nodeId
         }
     }
-
-    val coroutineScope = rememberCoroutineScope()
 
 
     // =================================================
@@ -650,6 +1030,68 @@ fun GraphFromJson(
                 }
             }
             .distinct()
+    }
+
+
+
+    // find blocked coin
+
+
+    fun findBlockingCoins(
+        selectedCoinIndex: Int
+    ): Set<Int> {
+
+        if (selectedCoinIndex == -1) {
+            return emptySet()
+        }
+
+        val selectedNode =
+            coinNodes[selectedCoinIndex]
+
+        val blockingCoins =
+            mutableSetOf<Int>()
+
+
+
+        // Check every node directly reachable from
+        // the selected coin.
+
+
+        val adjacentNodes =
+            getAdjacentNodes(selectedNode)
+
+        for (destinationNode in adjacentNodes) {
+
+            // A coin on the destination itself blocks movement.
+            graph.coins.forEachIndexed { coinIndex, _ ->
+
+                if (coinIndex == selectedCoinIndex) {
+                    return@forEachIndexed
+                }
+
+                val otherCoinNode =
+                    coinNodes[coinIndex]
+
+                // Coin is sitting on the destination.
+                if (otherCoinNode == destinationNode) {
+
+                    blockingCoins.add(coinIndex)
+                }
+
+                // Coin is adjacent to the destination.
+                val nodesAroundDestination =
+                    getAdjacentNodes(destinationNode)
+
+                if (
+                    otherCoinNode in nodesAroundDestination
+                ) {
+
+                    blockingCoins.add(coinIndex)
+                }
+            }
+        }
+
+        return blockingCoins
     }
 
 
@@ -936,7 +1378,6 @@ fun GraphFromJson(
             return
         }
 
-
         // =================================================
         // DESTINATION MUST BE GREEN
         // =================================================
@@ -944,7 +1385,6 @@ fun GraphFromJson(
         if (destinationNode !in highlightedNodes) {
             return
         }
-
 
         // =================================================
         // FIND PATH
@@ -966,23 +1406,28 @@ fun GraphFromJson(
             return
         }
 
+        // Start animation only after a valid path is found.
+        isMoving = true
+
+        previousCoinNodes = coinNodes
 
         // =================================================
         // MOVE STEP BY STEP
         // =================================================
-
         for (node in path.drop(1)) {
 
-            coinNodes =
-                coinNodes
-                    .toMutableList()
-                    .also {
-                        it[coinIndex] = node
-                    }
+            // Move animation target to the next node
+            targetPosition = position(
+                graph.nodes.first { it.id == node }
+            )
 
+            // Wait for animation to finish
+            delay(150.milliseconds)
 
-            // You can increase this for slower animation.
-            delay(300)
+            // Now update the actual coin node
+            coinNodes = coinNodes.toMutableList().also {
+                it[coinIndex] = node
+            }
         }
 
 
@@ -994,7 +1439,10 @@ fun GraphFromJson(
 
         highlightedNodes = emptySet()
 
-        highlightedEdges = emptySet()
+        blockedCoinIndices = emptySet()
+
+        isMoving = false
+
     }
 
 
@@ -1052,474 +1500,653 @@ fun GraphFromJson(
         touchPosition: Offset
     ) {
 
+        // Do not select another coin while a coin is moving.
+        if (isMoving) {
+            return
+        }
         graph.coins.forEachIndexed { index, _ ->
 
-            val nodeId =
-                coinNodes[index]
+            val nodeId = coinNodes[index]
 
+            val node = nodeMap[nodeId]
+                ?: return@forEachIndexed
 
-            val node =
-                nodeMap[nodeId]
-                    ?: return@forEachIndexed
+            val coinPosition = position(node)
 
+            val dx = touchPosition.x - coinPosition.x
+            val dy = touchPosition.y - coinPosition.y
 
-            val coinPosition =
-                position(node)
+            val distance = sqrt(
+                dx * dx + dy * dy
+            )
 
+            if (distance < 50f) {
 
-            val dx =
-                touchPosition.x -
-                        coinPosition.x
-
-
-            val dy =
-                touchPosition.y -
-                        coinPosition.y
-
-
-            val distance =
-                sqrt(
-                    dx * dx +
-                            dy * dy
-                )
-
-
-            if (distance < 30f) {
-
-                // =================================================
+                // ==========================================
                 // SELECT COIN
-                // =================================================
+                // ==========================================
 
                 selectedCoinIndex = index
 
+                // Prevent animation from jumping to (0,0)
+                targetPosition = coinPosition
 
-                // =================================================
-                // FIND REACHABLE AREA
-                // =================================================
+                isMoving = false
 
-                val result =
-                    findAllReachableNodes(
-                        startNode = nodeId,
-                        movingCoinIndex = index
-                    )
+                // Remove previous red borders
+                blockedCoinIndices = emptySet()
 
+                // ==========================================
+                // FIND VALID DESTINATIONS
+                // ==========================================
 
-                highlightedNodes =
-                    result.first
+                val result = findAllReachableNodes(
+                    startNode = nodeId,
+                    movingCoinIndex = index
+                )
 
+                highlightedNodes = result.first
 
-                highlightedEdges =
-                    result.second
+                // ==========================================
+                // COIN CANNOT MOVE
+                // ==========================================
 
+                if (highlightedNodes.isEmpty()) {
+
+                    blockedCoinIndices =
+                        findBlockingCoins(index)
+
+                } else {
+
+                    blockedCoinIndices =
+                        emptySet()
+                }
 
                 return@forEachIndexed
             }
+
         }
+
+
     }
 
+    LaunchedEffect(undoRequest) {
+
+        if (undoRequest > 0 && previousCoinNodes != null && !isMoving) {
+
+            coinNodes = previousCoinNodes!!
+
+            selectedCoinIndex = -1
+            highlightedNodes = emptySet()
+            blockedCoinIndices = emptySet()
+
+            winTriggered = false
+            isMoving = false
+
+            previousCoinNodes = null
+        }
+    }
 
     // =================================================
     // GRAPH BOX
     // =================================================
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(500.dp),
         contentAlignment = Alignment.Center
     ) {
 
+        // ==============================================
+        // GRAPH BACKGROUND
+        // ==============================================
+
+        // Calculate graph dimensions
+        val density = LocalDensity.current
+
+        val graphWidth = maxX - minX
+        val graphHeight = maxY - minY
+
+        val safeGraphWidth =
+            if (graphWidth == 0f) 1f else graphWidth
+
+        val safeGraphHeight =
+            if (graphHeight == 0f) 1f else graphHeight
+
+        val scaleX =
+            (canvasSize.width - 100f) / safeGraphWidth
+
+        val scaleY =
+            (canvasSize.height - 100f) / safeGraphHeight
+
+        val scale =
+            minOf(scaleX, scaleY)
+
+        val actualWidth =
+            safeGraphWidth * scale + 100f
+
+        val actualHeight =
+            safeGraphHeight * scale + 100f
+
+        val imageWidthDp =
+            with(density) {
+                actualWidth.toDp()
+            }
+
+        val imageHeightDp =
+            with(density) {
+                actualHeight.toDp()
+            }
+
+        // GRAPH BACKGROUND
         Image(
-            painter = painterResource(R.drawable.game_background2),
+            painter = painterResource(
+                R.drawable.leaf_game6
+            ),
             contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.FillWidth
         )
 
-        // =================================================
-        // CANVAS
-        // =================================================
+
+
+        // ==============================================
+        // GRAPH CANVAS
+        // ==============================================
 
         Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged {
+                    canvasSize = it
+                }
+                .pointerInput(
+                    jsonFileName,
+                    canvasSize,
+                    coinNodes,
+                    selectedCoinIndex,
+                    highlightedNodes
+                ) {
 
-            modifier =
-                Modifier
-                    .size(
-                        width = 600.dp,
-                        height = 600.dp
-                    )
+                    awaitEachGesture {
 
-                    .onSizeChanged {
-                        canvasSize = it
-                    }
+                        val down = awaitFirstDown(
+                            requireUnconsumed = false
+                        )
 
-                    .pointerInput(
-                        jsonFileName,
-                        canvasSize,
-                        coinNodes,
-                        selectedCoinIndex,
-                        highlightedNodes
-                    ) {
+                        val touchPosition = down.position
 
-                        awaitEachGesture {
 
-                            // =================================================
-                            // FIRST TOUCH
-                            // =================================================
+                        // ==================================
+                        // CLICK GREEN NODE
+                        // ==================================
 
-                            val down =
-                                awaitFirstDown(
-                                    requireUnconsumed = false
+                        if (
+                            selectedCoinIndex != -1 &&
+                            highlightedNodes.isNotEmpty()
+                        ) {
+
+                            val clickedNode =
+                                findClickedHighlightedNode(
+                                    touchPosition
                                 )
 
+                            if (clickedNode != null) {
 
-                            val touchPosition =
-                                down.position
+                                coroutineScope.launch {
 
-
-                            // =================================================
-                            // FIRST:
-                            // CHECK GREEN NODE
-                            // =================================================
-
-                            if (
-                                selectedCoinIndex != -1 &&
-                                highlightedNodes.isNotEmpty()
-                            ) {
-
-                                val clickedNode =
-                                    findClickedHighlightedNode(
-                                        touchPosition
+                                    moveSelectedCoinToNode(
+                                        destinationNode = clickedNode
                                     )
-                                if (clickedNode != null) {
-
-                                    coroutineScope.launch {
-
-                                        moveSelectedCoinToNode(
-                                            destinationNode = clickedNode
-                                        )
-                                    }
-
-                                    return@awaitEachGesture
                                 }
+
+                                return@awaitEachGesture
                             }
-
-
-                            // =================================================
-                            // SECOND:
-                            // CHECK COIN
-                            // =================================================
-
-                            selectCoinAt(
-                                touchPosition
-                            )
                         }
-                    }
 
+
+                        // ==================================
+                        // SELECT COIN
+                        // ==================================
+
+                        selectCoinAt(
+                            touchPosition
+                        )
+                    }
+                }
         ) {
 
-            // =================================================
-            // DRAWING VALUES
-            // =================================================
+            // ==========================================
+            // KEEP YOUR EXISTING CANVAS DRAWING CODE HERE
+            // ==========================================
 
-            val padding =
-                30f
+            val padding = 50f
 
-
-            val graphWidth =
-                maxX - minX
-
-
-            val graphHeight =
-                maxY - minY
-
+            val graphWidth = maxX - minX
+            val graphHeight = maxY - minY
 
             val safeGraphWidth =
-                if (graphWidth == 0f) {
-                    1f
-                } else {
-                    graphWidth
-                }
-
+                if (graphWidth == 0f) 1f else graphWidth
 
             val safeGraphHeight =
-                if (graphHeight == 0f) {
-                    1f
-                } else {
-                    graphHeight
-                }
-
+                if (graphHeight == 0f) 1f else graphHeight
 
             val scaleX =
                 (size.width - padding * 2f) /
                         safeGraphWidth
 
-
             val scaleY =
                 (size.height - padding * 2f) /
                         safeGraphHeight
 
-
             val scale =
-                minOf(
-                    scaleX,
-                    scaleY
-                )
-
+                minOf(scaleX, scaleY)
 
             val actualWidth =
                 safeGraphWidth * scale
 
-
             val actualHeight =
                 safeGraphHeight * scale
 
-
             val offsetX =
                 (size.width - actualWidth) / 2f
-
 
             val offsetY =
                 (size.height - actualHeight) / 2f
 
 
-            // =================================================
+            // ==========================================
             // DRAW EDGES
-            // =================================================
+            // ==========================================
 
             graph.edges.forEach { edge ->
 
-                val node1 =
-                    nodeMap[edge.first]
-
-
-                val node2 =
-                    nodeMap[edge.second]
-
+                val node1 = nodeMap[edge.first]
+                val node2 = nodeMap[edge.second]
 
                 if (
                     node1 != null &&
                     node2 != null
                 ) {
 
-                    val edgeKey =
-                        Pair(
-                            minOf(
-                                edge.first,
-                                edge.second
-                            ),
+                    val start = Offset(
+                        x = offsetX +
+                                (node1.x - minX) * scale,
 
-                            maxOf(
-                                edge.first,
-                                edge.second
-                            )
-                        )
+                        y = offsetY +
+                                (node1.y - minY) * scale
+                    )
 
+                    val end = Offset(
+                        x = offsetX +
+                                (node2.x - minX) * scale,
 
-                    val start =
-                        Offset(
-                            x =
-                                offsetX +
-                                        (node1.x - minX) *
-                                        scale,
-
-                            y =
-                                offsetY +
-                                        (node1.y - minY) *
-                                        scale
-                        )
-
-
-                    val end =
-                        Offset(
-                            x =
-                                offsetX +
-                                        (node2.x - minX) *
-                                        scale,
-
-                            y =
-                                offsetY +
-                                        (node2.y - minY) *
-                                        scale
-                        )
-
+                        y = offsetY +
+                                (node2.y - minY) * scale
+                    )
 
                     drawLine(
-
-                        color =
-                            if (
-                                edgeKey in highlightedEdges
-                            ) {
-                                Color.Green
-                            } else {
-                                Color.Black
-                            },
-
+                        color = Color.Black,
                         start = start,
-
                         end = end,
-
-                        strokeWidth =
-                            if (
-                                edgeKey in highlightedEdges
-                            ) {
-                                6f
-                            } else {
-                                3f
-                            }
+                        strokeWidth = 5f
                     )
                 }
             }
 
 
-            // =================================================
-            // DRAW NODES
-            // =================================================
 
+
+            // ==========================================
+            // DRAW NODES
+            // ==========================================
             graph.nodes.forEach { node ->
 
-                val nodePosition =
-                    Offset(
-                        x =
-                            offsetX +
-                                    (node.x - minX) *
-                                    scale,
+                val nodePosition = Offset(
+                    x = offsetX +
+                            (node.x - minX) * scale,
 
-                        y =
-                            offsetY +
-                                    (node.y - minY) *
-                                    scale
-                    )
-
-
-                drawCircle(
-
-                    color =
-                        when {
-
-                            // =================================
-                            // WIN NODE
-                            // =================================
-
-                            node.id == graph.winNode -> {
-                                Color.Red
-                            }
-
-
-                            // =================================
-                            // REACHABLE NODE
-                            // =================================
-
-                            node.id in highlightedNodes -> {
-                                Color.Green
-                            }
-
-
-                            // =================================
-                            // NORMAL NODE
-                            // =================================
-
-                            else -> {
-                                Color.DarkGray
-                            }
-                        },
-
-                    radius = 11f,
-
-                    center = nodePosition
+                    y = offsetY +
+                            (node.y - minY) * scale
                 )
+
+                val isWinNode =
+                    node.id == graph.winNode
+
+                if (isWinNode) {
+
+                    // Is the basket currently reachable?
+                    val isBasketReachable =
+                        node.id in highlightedNodes
+
+                    val basketSize =
+                        if (isBasketReachable) {
+                            60f * basketScale
+                        } else {
+                            60f
+                        }
+
+                    val basketY =
+                        if (isBasketReachable) {
+                            nodePosition.y + basketFloat
+                        } else {
+                            nodePosition.y
+                        }
+
+                    // Golden glow when basket is reachable
+                    if (isBasketReachable) {
+                        drawCircle(
+                            color = Color(0xFFFFD54F).copy(
+                                alpha = 0.30f
+                            ),
+                            radius = basketSize / 2f + 12f,
+                            center = Offset(
+                                nodePosition.x,
+                                basketY
+                            )
+                        )
+                    }
+
+                    drawImage(
+                        image = basketImage,
+
+                        dstOffset = IntOffset(
+                            x = (
+                                    nodePosition.x -
+                                            basketSize / 2f
+                                    ).toInt(),
+
+                            y = (
+                                    basketY -
+                                            basketSize / 2f
+                                    ).toInt()
+                        ),
+
+                        dstSize = IntSize(
+                            width = basketSize.toInt(),
+                            height = basketSize.toInt()
+                        )
+                    )
+                }
+
+                else {
+
+                    val isHighlighted =
+                        node.id in highlightedNodes
+
+                    val baseNodeSize = 65f
+
+                    val nodeSize =
+                        if (isHighlighted) {
+                            baseNodeSize * greenScale
+                        } else {
+                            baseNodeSize
+                        }
+
+                    val nodeImage =
+                        if (isHighlighted) {
+                            greenNodeImage
+                        } else {
+                            blackNodeImage
+                        }
+
+                    // Green glow
+                    if (isHighlighted) {
+
+                        drawCircle(
+                            color = Color.Green.copy(
+                                alpha = greenAlpha * 0.30f
+                            ),
+                            radius = nodeSize / 2f + 8f,
+                            center = nodePosition
+                        )
+                    }
+
+                    drawImage(
+                        image = nodeImage,
+
+                        dstOffset = IntOffset(
+                            x = (
+                                    nodePosition.x -
+                                            nodeSize / 2f
+                                    ).toInt(),
+
+                            y = (
+                                    nodePosition.y -
+                                            nodeSize / 2f
+                                    ).toInt()
+                        ),
+
+                        dstSize = IntSize(
+                            width = nodeSize.toInt(),
+                            height = nodeSize.toInt()
+                        )
+                    )
+                }
             }
 
 
-            // =================================================
+
+
+
+
+
+
+            // ==========================================
             // DRAW COINS
-            // =================================================
+            // ==========================================
 
             graph.coins.forEachIndexed { coinIndex, coin ->
 
                 val currentNodeId =
                     coinNodes[coinIndex]
 
-
                 val node =
                     nodeMap[currentNodeId]
 
-
                 if (node != null) {
 
+                    val normalPosition = Offset(
+                        x = offsetX + (node.x - minX) * scale,
+                        y = offsetY + (node.y - minY) * scale
+                    )
+
                     val coinPosition =
-                        Offset(
-                            x =
-                                offsetX +
-                                        (node.x - minX) *
-                                        scale,
-
-                            y =
-                                offsetY +
-                                        (node.y - minY) *
-                                        scale
-                        )
-
-
-                    // =============================================
-                    // COIN COLOR
-                    // =============================================
-
-                    val coinColor =
-                        if (
-                            coin.id == graph.targetCoin
-                        ) {
-
-                            // Target coin
-                            Color(0xFFFF6D00)
-
+                        if (coinIndex == selectedCoinIndex && isMoving) {
+                            animatedPosition
                         } else {
+                            normalPosition
+                        }
 
-                            Color.Gray
+                    val isSelected =
+                        coinIndex == selectedCoinIndex
+
+                    val isTargetCoin =
+                        coin.id == graph.targetCoin
+
+                    val coinSize =
+                        if (isSelected) 65f else 70f
+
+                    val coinImage =
+                        if (isTargetCoin) {
+                            appleImage
+                        } else {
+                            logImage
                         }
 
 
-                    // =============================================
-                    // SELECTED COIN BORDER
-                    // =============================================
 
-                    if (
-                        coinIndex == selectedCoinIndex
-                    ) {
+                    // ==========================================
+                    // RED BORDER FOR BLOCKING COIN
+                     // ==========================================
 
+                    if (coinIndex in blockedCoinIndices) {
+
+                        // Pulsing red outer glow
                         drawCircle(
-                            color = Color.Blue,
-                            radius = 18f,
+                            color = Color.Red.copy(
+                                alpha = redAlpha * 0.25f
+                            ),
+                            radius = coinSize / 2f + 12f,
+                            center = coinPosition
+                        )
+
+                        // Pulsing red border
+                        drawCircle(
+                            color = Color.Red.copy(
+                                alpha = redAlpha
+                            ),
+                            radius = coinSize / 2f + 7f,
                             center = coinPosition,
-                            style = Stroke(4f)
+                            style = Stroke(
+                                width = redBorderWidth
+                            )
                         )
                     }
 
 
-                    // =============================================
-                    // COIN
-                    // =============================================
+                    // GOLDEN GLOW
+                    if (isSelected) {
 
-                    drawCircle(
-                        color = coinColor,
-                        radius = 13f,
-                        center = coinPosition
-                    )
+                        // ==========================================
+                        // GOLDEN GLOW
+                        // ==========================================
+
+                        drawCircle(
+                            color = Color(0xFFFFD54F)
+                                .copy(alpha = glitterAlpha * 0.35f),
+                            radius = 45f * glitterScale,
+                            center = coinPosition
+                        )
+
+                        drawCircle(
+                            color = Color(0xFFFFC107)
+                                .copy(alpha = glitterAlpha),
+                            radius = 38f,
+                            center = coinPosition,
+                            style = Stroke(
+                                width = 3f
+                            )
+                        )
 
 
-                    // =============================================
-                    // RED OUTER BORDER
-                    // =============================================
+                        // ==========================================
+                        // GLITTER SPARKLES
+                        // ==========================================
 
-                    drawCircle(
-                        color = Color.Red,
-                        radius = 15f,
-                        center = coinPosition,
-                        style = Stroke(3f)
-                    )
+                        val sparklePositions = listOf(
+                            Offset(
+                                coinPosition.x,
+                                coinPosition.y - 45f
+                            ),
+
+                            Offset(
+                                coinPosition.x + 42f,
+                                coinPosition.y - 25f
+                            ),
+
+                            Offset(
+                                coinPosition.x + 42f,
+                                coinPosition.y + 25f
+                            ),
+
+                            Offset(
+                                coinPosition.x,
+                                coinPosition.y + 45f
+                            ),
+
+                            Offset(
+                                coinPosition.x - 42f,
+                                coinPosition.y + 25f
+                            ),
+
+                            Offset(
+                                coinPosition.x - 42f,
+                                coinPosition.y - 25f
+                            )
+                        )
+
+                        sparklePositions.forEach { sparkle ->
+
+                            drawCircle(
+                                color = Color.White.copy(
+                                    alpha = glitterAlpha
+                                ),
+                                radius = 4f * glitterScale,
+                                center = sparkle
+                            )
+
+                            drawLine(
+                                color = Color.White.copy(
+                                    alpha = glitterAlpha * 0.8f
+                                ),
+                                start = Offset(
+                                    sparkle.x - 9f,
+                                    sparkle.y
+                                ),
+                                end = Offset(
+                                    sparkle.x + 9f,
+                                    sparkle.y
+                                ),
+                                strokeWidth = 2f
+                            )
+
+                            drawLine(
+                                color = Color.White.copy(
+                                    alpha = glitterAlpha * 0.8f
+                                ),
+                                start = Offset(
+                                    sparkle.x,
+                                    sparkle.y - 9f
+                                ),
+                                end = Offset(
+                                    sparkle.x,
+                                    sparkle.y + 9f
+                                ),
+                                strokeWidth = 2f
+                            )
+                        }
+                    }
+
+
+                    // ANIMATION
+                    withTransform({
+
+                        scale(
+                            scale = coinScale,
+                            pivot = coinPosition
+                        )
+
+                    }) {
+
+                        drawImage(
+                            image = coinImage,
+
+                            dstOffset = IntOffset(
+                                x = (
+                                        coinPosition.x -
+                                                coinSize / 2f
+                                        ).toInt(),
+
+                                y = (
+                                        coinPosition.y -
+                                                coinSize / 2f
+                                        ).toInt()
+                            ),
+
+                            dstSize = IntSize(
+                                width = coinSize.toInt(),
+                                height = coinSize.toInt()
+                            )
+                        )
+                    }
                 }
             }
         }
     }
 }
+
 
 
 // =====================================================
@@ -1529,13 +2156,13 @@ fun GraphFromJson(
 @Preview(
     showBackground = true,
     widthDp = 360,
-    heightDp = 700
+    heightDp = 800
 )
 @Composable
 fun GameScreenPreview() {
-
     GameScreen(
         onBackClick = {},
-        startLevel = 6
+        startLevel = 8
     )
 }
+

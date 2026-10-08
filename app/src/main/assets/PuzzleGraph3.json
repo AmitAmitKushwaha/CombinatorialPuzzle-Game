@@ -371,44 +371,39 @@
       "color": "yellow"
     },
     {
-      "id": 4,
+      "id": 5,
       "node": 16,
       "color": "purple"
     },
     {
-      "id": 5,
+      "id": 6,
       "node": 19,
       "color": "pink"
     },
     {
-      "id": 6,
+      "id": 7,
       "node": 21,
       "color": "cyan"
     },
     {
-      "id": 7,
+      "id": 8,
       "node": 23,
       "color": "magenta"
     },
     {
-      "id": 8,
+      "id": 9,
       "node": 24,
       "color": "gold"
     },
     {
-      "id": 9,
+      "id": 10,
       "node": 26,
       "color": "lime"
     },
     {
-      "id": 10,
+      "id": 11,
       "node": 28,
       "color": "teal"
-    },
-    {
-      "id": 11,
-      "node": 7,
-      "color": "violet"
     }
   ],
 
