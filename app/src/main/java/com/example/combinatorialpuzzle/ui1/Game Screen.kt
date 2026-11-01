@@ -1,5 +1,6 @@
 package com.example.combinatorialpuzzle.ui1
 
+import androidx.compose.ui.graphics.drawscope.rotate
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -48,7 +49,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.core.animateOffsetAsState
@@ -56,6 +56,19 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.FilterQuality
+
+
+// AUTOMATIC LEVEL DETECTION
+
+fun getTotalLevels(context: Context): Int {
+    return context.assets.list("")?.count { fileName ->
+        fileName.matches(Regex("PuzzleGraph\\d+\\.json"))
+    } ?: 0
+}
 
 // =====================================================
 // GAME SCREEN
@@ -67,6 +80,12 @@ fun GameScreen(
     startLevel: Int = 1
 ) {
 
+
+    val context = LocalContext.current
+
+    val totalLevels = remember {
+        getTotalLevels(context)
+    }
     // =================================================
     // LEVEL
     // =================================================
@@ -75,8 +94,13 @@ fun GameScreen(
         mutableIntStateOf(startLevel)
     }
 
+    //RedoRequest
 
+    var redoRequest by remember {
+        mutableIntStateOf(0)
+    }
 
+    //UndoRequest
 
     var undoRequest by remember {
         mutableIntStateOf(0)
@@ -95,9 +119,9 @@ fun GameScreen(
     var displayedInstruction by remember { mutableStateOf("") }
 
     val instructionText =
-        "👆 Drag the log/apple to a connected adjacent node.\n" +
-                "🚫 A move is blocked if another log/apple is next to the destination node.\n" +
-                "🎯 Reach the basket to complete the level!"
+        "👆 Drag the fox/bear to a connected adjacent node.\n" +
+                "🚫 A move is blocked if another fox/bear is next to the destination node.\n" +
+                "🎯 Reach the cave to complete the level!"
 
 
     LaunchedEffect(level) {
@@ -111,6 +135,7 @@ fun GameScreen(
         displayedInstruction = ""
 
         // Show words one by one
+
         for (word in instructionText.split(" ")) {
             displayedInstruction =
                 if (displayedInstruction.isEmpty()) {
@@ -123,7 +148,8 @@ fun GameScreen(
         }
 
         // Keep complete instruction visible
-        delay(2100.milliseconds)
+        delay(2500.milliseconds)
+
 
         // Disappear
         showInstruction = false
@@ -152,7 +178,7 @@ fun GameScreen(
 
         Image(
             painter = painterResource(
-                R.drawable.game_background3
+                R.drawable.screen_background
             ),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
@@ -168,6 +194,9 @@ fun GameScreen(
             context = LocalContext.current,
             jsonFileName = jsonFileName,
             undoRequest = undoRequest,
+            redoRequest = redoRequest,
+            onWinStateChange = { won = it },
+            gameWon = won,
             onWin = {
                 won = true
             },
@@ -185,28 +214,29 @@ fun GameScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(
-                        start = 12.dp,
+                        end = 12.dp,
                         bottom = 80.dp
                     )
                     .size(
-                        width = 160.dp,
+                        width = 180.dp,
                         height = 80.dp
                     )
                     .clickable {
 
 
-                        // After level 7, return to level 1
-                        if (level < 8) {
+                        if (level < totalLevels) {
                             level++
+
+                            // Reset win state
+                            won = false
                         }
 
-                        // Reset win state
-                        won = false
                     },
                 contentAlignment = Alignment.Center
             ) {
 
                 // Wooden level PNG
+
                 Image(
                     painter = painterResource(
                         R.drawable.level
@@ -216,13 +246,24 @@ fun GameScreen(
                     contentScale = ContentScale.Fit
                 )
 
-                // Level text
-                Text(
-                    text = " 🧩Level $level",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🧩",
+                        color = Color(0xFFDAA520),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Level text
+                    Text(
+                        text = " Level $level",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
 
@@ -232,18 +273,36 @@ fun GameScreen(
 
             if (won) {
 
-
-                Text(
-                    text = "YOU WIN",
-                    color = Color.Red,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(
-                            top = 120.dp
+                            top = 100.dp
                         )
-                )
+                        .size(
+                            width = 280.dp,
+                            height = 125.dp
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    Image(
+                        painter = painterResource(R.drawable.youwin),
+                        contentDescription = "Undo button",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                    Text(
+                        text = "YOU WIN",
+                        color = Color(0xFFFFD700),
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+
+                    )
+
+                }
+
             }
 
 
@@ -255,11 +314,11 @@ fun GameScreen(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(
-                        start = 10.dp,
+                        start = 12.dp,
                         bottom = 80.dp
                     )
                     .size(
-                        width = 160.dp,
+                        width = 180.dp,
                         height = 80.dp
                     )
                     .clickable {
@@ -273,6 +332,7 @@ fun GameScreen(
             ) {
 
                 // Wooden level PNG
+
                 Image(
                     painter = painterResource(
                         R.drawable.level
@@ -281,13 +341,24 @@ fun GameScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⬅",
+                        color = Color(0xFFDAA520),
+                        fontSize = 45.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.offset(y = (-9).dp)
+                    )
 
-                Text(
-                    text = "Back",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                    Text(
+                        text = " Back",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
             }
 
@@ -300,11 +371,11 @@ fun GameScreen(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(
-                        start = 120.dp,
+                        start = 12.dp,
                         bottom = 160.dp
                     )
                     .size(
-                        width = 160.dp,
+                        width = 180.dp,
                         height = 80.dp
                     )
                     .clickable {
@@ -319,15 +390,77 @@ fun GameScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "↩",
+                        color = Color(0xFFDAA520),
+                        fontSize = 45.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.offset(y = (-9).dp)
+                    )
 
-                Text(
-                    text = "Undo",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                    Text(
+                        text = " Undo",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
             }
+
+
+
+        // =================================================
+        // REDO BUTTON
+        // =================================================
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = 12.dp,
+                    bottom = 160.dp
+                )
+                .size(
+                    width = 180.dp,
+                    height = 80.dp
+                )
+                .clickable {
+                    redoRequest++
+                },
+            contentAlignment = Alignment.Center
+        ) {
+
+            Image(
+                painter = painterResource(R.drawable.level),
+                contentDescription = "Redo button",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "↪",
+                    color = Color(0xFFDAA520),
+                    fontSize = 45.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.offset(y = (-9).dp)
+                )
+
+                Text(
+                    text = " Redo",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+        }
+
 
 
 
@@ -352,6 +485,7 @@ fun GameScreen(
 
 
                     // Background instruction image
+
                     Image(
                         painter = painterResource(id = R.drawable.instruction),
                         contentDescription = "How to Play",
@@ -375,21 +509,16 @@ fun GameScreen(
                                 top = 55.dp,
                                 bottom = 25.dp
                             )
+
                     )
                 }
             }
 
 
 
-
-
-
-
-
-
-
-
     }
+
+
     }
 
 
@@ -557,7 +686,10 @@ fun loadGraphFromJson(
 fun GraphFromJson(
     context: Context,
     jsonFileName: String,
+    gameWon: Boolean,
     undoRequest: Int,
+    redoRequest: Int,
+    onWinStateChange: (Boolean) -> Unit,
     onWin: () -> Unit,
     onUndo: () -> Unit
 ) {
@@ -603,9 +735,6 @@ fun GraphFromJson(
     }
 
 
-    var previousCoinNodes by remember(jsonFileName) {
-        mutableStateOf<List<Int>?>(null)
-    }
 
     // =================================================
     // SELECTED COIN
@@ -630,7 +759,18 @@ fun GraphFromJson(
         mutableStateOf<Set<Int>>(
             emptySet()
         )
+
     }
+
+    // =================================================
+    // HIGHLIGHTED EDGE
+    // =================================================
+
+    var highlightedEdges by remember(jsonFileName) {
+        mutableStateOf<Set<Pair<Int, Int>>>(emptySet())
+    }
+
+
     var targetPosition by remember(jsonFileName) {
         mutableStateOf(Offset.Zero)
     }
@@ -705,42 +845,70 @@ fun GraphFromJson(
     }
 
 
-    LaunchedEffect(
-        coinNodes,
-        graph.targetCoin,
-        graph.winNode
-    ) {
-
-        if (
-            !winTriggered &&
-            targetCoinIndex != -1 &&
-            coinNodes[targetCoinIndex] == graph.winNode
-        ) {
-
-            winTriggered = true
-
-            onWin()
-        }
+    val redoHistory = remember(jsonFileName) {
+        mutableStateListOf<List<Int>>()
     }
+
+
+    val moveHistory = remember(jsonFileName) {
+        mutableStateListOf<List<Int>>()
+    }
+
 
     LaunchedEffect(undoRequest) {
 
-        if (undoRequest > 0 && previousCoinNodes != null && !isMoving) {
+        if (
+            undoRequest > 0 &&
+            moveHistory.isNotEmpty() &&
+            !isMoving
+        ) {
 
-            coinNodes = previousCoinNodes!!
+            redoHistory.add(coinNodes.toList())
+
+            // Take the most recent state
+            coinNodes = moveHistory.removeAt(
+                moveHistory.lastIndex
+            )
 
             selectedCoinIndex = -1
             highlightedNodes = emptySet()
+            highlightedEdges = emptySet()
             blockedCoinIndices = emptySet()
 
             winTriggered = false
             isMoving = false
 
-            onUndo()
+            // If the win state was undone,
+            // unlock the game
 
-            previousCoinNodes = null
+            onUndo()
         }
     }
+
+    LaunchedEffect(redoRequest) {
+        if (
+            redoRequest > 0 &&
+            redoHistory.isNotEmpty() &&
+            !isMoving
+        ) {
+            moveHistory.add(coinNodes.toList())
+
+            coinNodes = redoHistory.removeAt(
+                redoHistory.lastIndex
+            )
+
+            onWinStateChange(
+                targetCoinIndex != -1 &&
+                        coinNodes[targetCoinIndex] == graph.winNode
+            )
+
+            selectedCoinIndex = -1
+            highlightedNodes = emptySet()
+            blockedCoinIndices = emptySet()
+        }
+    }
+
+
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -748,23 +916,17 @@ fun GraphFromJson(
     // APPLE IMAGE + ANIMATION
     // =================================================
 
-    val appleImage = ImageBitmap.imageResource(
-        R.drawable.apple
-    )
+    val appleImage = ImageBitmap.imageResource(R.drawable.fox2)
 
-    val logImage = ImageBitmap.imageResource(
-        R.drawable.log
-    )
+    val logImage = ImageBitmap.imageResource(R.drawable.bear)
 
-    val basketImage = ImageBitmap.imageResource(
-        R.drawable.basket
-    )
+    val basketImage = ImageBitmap.imageResource(R.drawable.foxden)
 
-    val greenNodeImage =
-        ImageBitmap.imageResource(R.drawable.green_node)
+    val greenNodeImage = ImageBitmap.imageResource(R.drawable.green_node)
 
-    val blackNodeImage =
-        ImageBitmap.imageResource(R.drawable.black_node)
+    val blackNodeImage = ImageBitmap.imageResource(R.drawable.blacknode)
+
+    val jungleEdgeImage = ImageBitmap.imageResource(R.drawable.jungle_edge3)
 
 
 
@@ -841,8 +1003,8 @@ fun GraphFromJson(
 
 
     // =================================================
-// BASKET FLOAT ANIMATION
-// =================================================
+    // BASKET FLOAT ANIMATION
+    // =================================================
 
     val basketTransition = rememberInfiniteTransition(
         label = "basketAnimation"
@@ -867,7 +1029,6 @@ fun GraphFromJson(
         ),
         label = "basketScale"
     )
-
 
 
     // =================================================
@@ -1146,7 +1307,6 @@ fun GraphFromJson(
             return false
         }
 
-
         return true
     }
 
@@ -1177,24 +1337,19 @@ fun GraphFromJson(
         // BFS
         // =================================================
 
+        val reachableEdges = mutableSetOf<Pair<Int, Int>>()
+
         while (queue.isNotEmpty()) {
 
-            val currentNode =
-                queue.removeFirst()
+            val currentNode = queue.removeFirst()
 
-
-            val neighbors =
-                getAdjacentNodes(
-                    currentNode
-                )
-
+            val neighbors = getAdjacentNodes(currentNode)
 
             for (nextNode in neighbors) {
 
                 if (nextNode in visited) {
                     continue
                 }
-
 
                 if (
                     !canMoveTo(
@@ -1205,60 +1360,40 @@ fun GraphFromJson(
                     continue
                 }
 
+                // Mark this node as reachable
 
                 visited.add(nextNode)
-
                 queue.add(nextNode)
+
+                // Highlight only the edge used to discover this node
+                reachableEdges.add(
+                    Pair(
+                        minOf(currentNode, nextNode),
+                        maxOf(currentNode, nextNode)
+                    )
+                )
             }
         }
-
 
         // =================================================
         // DESTINATION NODES
         // =================================================
 
-        val reachableNodes =
-            visited
-                .filter {
-                    it != startNode
-                }
-                .toSet()
-
+        val reachableNodes = visited
+            .filter { it != startNode }
+            .toSet()
 
         // =================================================
-        // EDGES
+        // RETURN ONLY NECESSARY BFS EDGES
         // =================================================
-
-        val reachableEdges =
-            graph.edges
-                .filter { edge ->
-
-                    edge.first in visited &&
-                            edge.second in visited
-                }
-                .map {
-
-                    Pair(
-                        minOf(
-                            it.first,
-                            it.second
-                        ),
-
-                        maxOf(
-                            it.first,
-                            it.second
-                        )
-                    )
-                }
-                .toSet()
-
 
         return Pair(
             reachableNodes,
             reachableEdges
         )
-    }
 
+
+    }
 
     // =================================================
     // FIND PATH
@@ -1370,28 +1505,26 @@ fun GraphFromJson(
         destinationNode: Int
     ) {
 
-        val coinIndex =
-            selectedCoinIndex
+        val coinIndex = selectedCoinIndex
 
 
-        if (coinIndex == -1) {
-            return
-        }
+        if (coinIndex == -1) { return }
+
+
+        val finalDestination = destinationNode
 
         // =================================================
         // DESTINATION MUST BE GREEN
         // =================================================
 
-        if (destinationNode !in highlightedNodes) {
-            return
-        }
+        if (destinationNode !in highlightedNodes) { return }
+
 
         // =================================================
         // FIND PATH
         // =================================================
 
-        val startNode =
-            coinNodes[coinIndex]
+        val startNode = coinNodes[coinIndex]
 
 
         val path =
@@ -1407,9 +1540,13 @@ fun GraphFromJson(
         }
 
         // Start animation only after a valid path is found.
+
         isMoving = true
 
-        previousCoinNodes = coinNodes
+       // Save current position before making the move
+
+        moveHistory.add(coinNodes.toList())
+        redoHistory.clear()
 
         // =================================================
         // MOVE STEP BY STEP
@@ -1439,9 +1576,23 @@ fun GraphFromJson(
 
         highlightedNodes = emptySet()
 
+        highlightedEdges = emptySet()
+
         blockedCoinIndices = emptySet()
 
         isMoving = false
+
+
+
+        // WIN ONLY IF THE SELECTED FINAL DESTINATION IS winNode
+
+        if (
+            coinIndex == targetCoinIndex &&
+            finalDestination == graph.winNode
+        ) {
+            winTriggered = true
+            onWin()
+        }
 
     }
 
@@ -1547,6 +1698,7 @@ fun GraphFromJson(
 
                 highlightedNodes = result.first
 
+                highlightedEdges = result.second
                 // ==========================================
                 // COIN CANNOT MOVE
                 // ==========================================
@@ -1570,22 +1722,7 @@ fun GraphFromJson(
 
     }
 
-    LaunchedEffect(undoRequest) {
 
-        if (undoRequest > 0 && previousCoinNodes != null && !isMoving) {
-
-            coinNodes = previousCoinNodes!!
-
-            selectedCoinIndex = -1
-            highlightedNodes = emptySet()
-            blockedCoinIndices = emptySet()
-
-            winTriggered = false
-            isMoving = false
-
-            previousCoinNodes = null
-        }
-    }
 
     // =================================================
     // GRAPH BOX
@@ -1594,62 +1731,14 @@ fun GraphFromJson(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(500.dp),
+            .height(500.dp)
+            .padding(
+                start = 25.dp,
+                end = 25.dp,
+                bottom = 30.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
-
-        // ==============================================
-        // GRAPH BACKGROUND
-        // ==============================================
-
-        // Calculate graph dimensions
-        val density = LocalDensity.current
-
-        val graphWidth = maxX - minX
-        val graphHeight = maxY - minY
-
-        val safeGraphWidth =
-            if (graphWidth == 0f) 1f else graphWidth
-
-        val safeGraphHeight =
-            if (graphHeight == 0f) 1f else graphHeight
-
-        val scaleX =
-            (canvasSize.width - 100f) / safeGraphWidth
-
-        val scaleY =
-            (canvasSize.height - 100f) / safeGraphHeight
-
-        val scale =
-            minOf(scaleX, scaleY)
-
-        val actualWidth =
-            safeGraphWidth * scale + 100f
-
-        val actualHeight =
-            safeGraphHeight * scale + 100f
-
-        val imageWidthDp =
-            with(density) {
-                actualWidth.toDp()
-            }
-
-        val imageHeightDp =
-            with(density) {
-                actualHeight.toDp()
-            }
-
-        // GRAPH BACKGROUND
-        Image(
-            painter = painterResource(
-                R.drawable.leaf_game6
-            ),
-            contentDescription = null,
-            modifier = Modifier.fillMaxWidth(),
-            contentScale = ContentScale.FillWidth
-        )
-
-
 
         // ==============================================
         // GRAPH CANVAS
@@ -1674,6 +1763,12 @@ fun GraphFromJson(
                         val down = awaitFirstDown(
                             requireUnconsumed = false
                         )
+
+                        // Do not allow any game action after winning
+                        if (gameWon) {
+                            return@awaitEachGesture
+                        }
+
 
                         val touchPosition = down.position
 
@@ -1718,80 +1813,78 @@ fun GraphFromJson(
         ) {
 
             // ==========================================
-            // KEEP YOUR EXISTING CANVAS DRAWING CODE HERE
-            // ==========================================
-
-            val padding = 50f
-
-            val graphWidth = maxX - minX
-            val graphHeight = maxY - minY
-
-            val safeGraphWidth =
-                if (graphWidth == 0f) 1f else graphWidth
-
-            val safeGraphHeight =
-                if (graphHeight == 0f) 1f else graphHeight
-
-            val scaleX =
-                (size.width - padding * 2f) /
-                        safeGraphWidth
-
-            val scaleY =
-                (size.height - padding * 2f) /
-                        safeGraphHeight
-
-            val scale =
-                minOf(scaleX, scaleY)
-
-            val actualWidth =
-                safeGraphWidth * scale
-
-            val actualHeight =
-                safeGraphHeight * scale
-
-            val offsetX =
-                (size.width - actualWidth) / 2f
-
-            val offsetY =
-                (size.height - actualHeight) / 2f
-
-
-            // ==========================================
             // DRAW EDGES
             // ==========================================
-
             graph.edges.forEach { edge ->
 
                 val node1 = nodeMap[edge.first]
                 val node2 = nodeMap[edge.second]
 
-                if (
-                    node1 != null &&
-                    node2 != null
-                ) {
+                if (node1 != null && node2 != null) {
 
-                    val start = Offset(
-                        x = offsetX +
-                                (node1.x - minX) * scale,
+                    val start = position(node1)
+                    val end = position(node2)
 
-                        y = offsetY +
-                                (node1.y - minY) * scale
+                    val dx = end.x - start.x
+                    val dy = end.y - start.y
+
+                    val length = kotlin.math.sqrt(dx * dx + dy * dy)
+                    val angle = Math.toDegrees(
+                        kotlin.math.atan2(dy, dx).toDouble()
+                    ).toFloat()
+
+                    val edgeKey = Pair(
+                        minOf(edge.first, edge.second),
+                        maxOf(edge.first, edge.second)
                     )
 
-                    val end = Offset(
-                        x = offsetX +
-                                (node2.x - minX) * scale,
+                    val isGreenEdge = edgeKey in highlightedEdges
 
-                        y = offsetY +
-                                (node2.y - minY) * scale
+
+                    // Always draw the jungle texture first
+
+                    val edgeThickness = 99f
+
+                    val center = Offset(
+                        x = (start.x + end.x) / 2f,
+                        y = (start.y + end.y) / 2f
                     )
 
-                    drawLine(
-                        color = Color.Black,
-                        start = start,
-                        end = end,
-                        strokeWidth = 5f
-                    )
+                    rotate(
+                        degrees = angle,
+                        pivot = center
+                    ) {
+                        drawImage(
+                            image = jungleEdgeImage,
+                            dstOffset = IntOffset(
+                                x = (center.x - length / 2f).toInt(),
+                                y = (center.y - edgeThickness / 2f).toInt()
+                            ),
+                            dstSize = IntSize(
+                                width = length.toInt(),
+                                height = edgeThickness.toInt()
+                            ),
+                            filterQuality = FilterQuality.High
+                        )
+                    }
+
+                   // Draw green highlight over the jungle path
+
+                    if (isGreenEdge) {
+                        drawLine(
+                            color = Color.Green.copy(alpha = greenAlpha * 0.45f),
+                            start = start,
+                            end = end,
+                            strokeWidth = 22f
+                        )
+
+                        drawLine(
+                            color = Color(0xFF76FF03).copy(alpha = greenAlpha),
+                            start = start,
+                            end = end,
+                            strokeWidth = 5f
+                        )
+                    }
                 }
             }
 
@@ -1801,15 +1894,10 @@ fun GraphFromJson(
             // ==========================================
             // DRAW NODES
             // ==========================================
+
             graph.nodes.forEach { node ->
 
-                val nodePosition = Offset(
-                    x = offsetX +
-                            (node.x - minX) * scale,
-
-                    y = offsetY +
-                            (node.y - minY) * scale
-                )
+                val nodePosition = position(node)
 
                 val isWinNode =
                     node.id == graph.winNode
@@ -1817,24 +1905,29 @@ fun GraphFromJson(
                 if (isWinNode) {
 
                     // Is the basket currently reachable?
+
                     val isBasketReachable =
                         node.id in highlightedNodes
 
-                    val basketSize =
-                        if (isBasketReachable) {
-                            60f * basketScale
-                        } else {
-                            60f
-                        }
 
-                    val basketY =
-                        if (isBasketReachable) {
-                            nodePosition.y + basketFloat
-                        } else {
-                            nodePosition.y
-                        }
+
+
+                    val basketSize = 70f * basketScale
+                    val basketY = nodePosition.y + basketFloat
+
+
+                  // Golden glow always fluctuates
+                    drawCircle(
+                        color = Color(0xFFFFD54F).copy(
+                            alpha = glitterAlpha * 0.45f
+                        ),
+                        radius = basketSize / 2f + 12f * glitterScale,
+                        center = Offset(nodePosition.x, basketY)
+                    )
+
 
                     // Golden glow when basket is reachable
+
                     if (isBasketReachable) {
                         drawCircle(
                             color = Color(0xFFFFD54F).copy(
@@ -1875,7 +1968,7 @@ fun GraphFromJson(
                     val isHighlighted =
                         node.id in highlightedNodes
 
-                    val baseNodeSize = 65f
+                    val baseNodeSize = 45f
 
                     val nodeSize =
                         if (isHighlighted) {
@@ -1892,6 +1985,7 @@ fun GraphFromJson(
                         }
 
                     // Green glow
+
                     if (isHighlighted) {
 
                         drawCircle(
@@ -1927,30 +2021,19 @@ fun GraphFromJson(
             }
 
 
-
-
-
-
-
-
             // ==========================================
             // DRAW COINS
             // ==========================================
 
             graph.coins.forEachIndexed { coinIndex, coin ->
 
-                val currentNodeId =
-                    coinNodes[coinIndex]
+                val currentNodeId = coinNodes[coinIndex]
 
-                val node =
-                    nodeMap[currentNodeId]
+                val node = nodeMap[currentNodeId]
 
                 if (node != null) {
 
-                    val normalPosition = Offset(
-                        x = offsetX + (node.x - minX) * scale,
-                        y = offsetY + (node.y - minY) * scale
-                    )
+                    val normalPosition = position(node)
 
                     val coinPosition =
                         if (coinIndex == selectedCoinIndex && isMoving) {
@@ -1965,8 +2048,11 @@ fun GraphFromJson(
                     val isTargetCoin =
                         coin.id == graph.targetCoin
 
-                    val coinSize =
-                        if (isSelected) 65f else 70f
+                    val coinSize = when {
+                        isSelected -> 85f
+                        isTargetCoin -> 75f * basketScale
+                        else -> 75f
+                    }
 
                     val coinImage =
                         if (isTargetCoin) {
@@ -1976,14 +2062,14 @@ fun GraphFromJson(
                         }
 
 
-
                     // ==========================================
                     // RED BORDER FOR BLOCKING COIN
                      // ==========================================
 
                     if (coinIndex in blockedCoinIndices) {
 
-                        // Pulsing red outer glow
+                        // Appearing red outer glow
+
                         drawCircle(
                             color = Color.Red.copy(
                                 alpha = redAlpha * 0.25f
@@ -1992,7 +2078,8 @@ fun GraphFromJson(
                             center = coinPosition
                         )
 
-                        // Pulsing red border
+                        // Appearing red border
+
                         drawCircle(
                             color = Color.Red.copy(
                                 alpha = redAlpha
@@ -2005,8 +2092,20 @@ fun GraphFromJson(
                         )
                     }
 
+                    // Golden glow around Apple
+
+                    if (isTargetCoin) {
+                        drawCircle(
+                            color = Color(0xFFFFD54F).copy(
+                                alpha = glitterAlpha * 0.45f
+                            ),
+                            radius = coinSize / 2f + 12f * glitterScale,
+                            center = coinPosition
+                        )
+                    }
 
                     // GOLDEN GLOW
+
                     if (isSelected) {
 
                         // ==========================================
@@ -2016,17 +2115,17 @@ fun GraphFromJson(
                         drawCircle(
                             color = Color(0xFFFFD54F)
                                 .copy(alpha = glitterAlpha * 0.35f),
-                            radius = 45f * glitterScale,
+                            radius = 50f * glitterScale,
                             center = coinPosition
                         )
 
                         drawCircle(
                             color = Color(0xFFFFC107)
                                 .copy(alpha = glitterAlpha),
-                            radius = 38f,
+                            radius = 45f,
                             center = coinPosition,
                             style = Stroke(
-                                width = 3f
+                                width = 5f
                             )
                         )
 
@@ -2148,7 +2247,6 @@ fun GraphFromJson(
 }
 
 
-
 // =====================================================
 // PREVIEW
 // =====================================================
@@ -2165,4 +2263,3 @@ fun GameScreenPreview() {
         startLevel = 8
     )
 }
-

@@ -72,7 +72,7 @@ fun Greeting(
 
                 Image(
                     painter = painterResource(
-                        R.drawable.game_background1
+                        R.drawable.homescreen_background
                     ),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
